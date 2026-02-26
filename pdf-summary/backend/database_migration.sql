@@ -1,3 +1,4 @@
+
 -- 1. 데이터베이스 생성 (없는 경우)
 CREATE DATABASE IF NOT EXISTS pdf_summary CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE pdf_summary;
