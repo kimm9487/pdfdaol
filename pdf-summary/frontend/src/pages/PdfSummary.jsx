@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import './PdfSummary.css';
 
 const PdfSummary = () => {
@@ -73,8 +72,6 @@ const PdfSummary = () => {
 
     const handleDownload = async () => {
         if (!result) return;
-        
-        // 브라우저 자체 다운로드 기능 활용
         const element = document.createElement("a");
         const fileContent = new Blob([result.summary], { type: 'text/plain' });
         element.href = URL.createObjectURL(fileContent);
@@ -85,19 +82,15 @@ const PdfSummary = () => {
 
     return (
         <div className="container">
-            {/* 상단 내비게이션 버튼 추가 */}
-            <div className="nav-header">
-                <Link to="/login" className="nav-btn">로그인</Link>
-                <Link to="/register" className="nav-btn accent">회원가입</Link>
-            </div>
-
+            {/* 🚩 중복되었던 nav-header 부분을 삭제했습니다. */}
+            
             <div className="card">
-                <div className="card-title">PDF 요약 도구 - React 버전</div>
+                <div className="card-title">PDF 요약 도구 - AI Analysis</div>
 
                 <div className="upload-row">
                     <label className={`file-label ${file ? 'has-file' : ''}`}>
                         <input type="file" onChange={handleFileChange} accept=".pdf" style={{ display: 'none' }} />
-                        <svg className="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg className="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                             <polyline points="14 2 14 8 20 8" />
                         </svg>

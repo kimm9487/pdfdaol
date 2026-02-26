@@ -1,0 +1,55 @@
+.header-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 10%; /* 여백을 조금 더 넓게 조정 */
+  background-color: #ffffff;
+  border-bottom: 1px solid #e1e4e8;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.header-logo a {
+  font-size: 22px;
+  font-weight: 800;
+  color: #3498db;
+  text-decoration: none;
+}
+
+.header-menu {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-btn {
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: #ffffff;
+  color: #57606a;
+  border: 1px solid #d0d7de;
+}
+
+.nav-btn:hover {
+  background-color: #f6f8fa;
+}
+
+/* 회원가입/로그아웃 버튼 스타일 강조 */
+.nav-btn.register, .nav-btn.logout {
+  background-color: #24292f;
+  color: #ffffff;
+  border: none;
+}
+
+.nav-btn.register:hover, .nav-btn.logout:hover {
+  background-color: #1b1f23;
+}
+
+.user-welcome {
+  font-size: 14px;
+  color: #24292f;
+  margin-right: 15px;
+}

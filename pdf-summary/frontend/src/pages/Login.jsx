@@ -9,30 +9,28 @@ const Login = () => {
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
-        e.preventDefault();
-        setError('');
+    e.preventDefault();
+    try {
+        const response = await fetch("http://localhost:8000/auth/login", {
+            method: "POST",
+            body: new URLSearchParams({ user_id: userId, user_pw: userPw }),
+        });
 
-        const formData = new FormData();
-        formData.append('user_id', userId);
-        formData.append('user_pw', userPw);
-
-        try {
-            // FastAPI 서버의 로그인 엔드포인트 호출
-            const response = await fetch('http://localhost:8000/auth/login', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (response.ok) {
-                // 로그인 성공 시 메인 페이지(/)로 이동
-                navigate('/');
-            } else {
-                const data = await response.json();
-                setError(data.message || '로그인에 실패했습니다.');
-            }
-        } catch (err) {
-            setError('서버와 연결할 수 없습니다.');
+        if (response.ok) {
+            const data = await response.json();
+            localStorage.setItem("userName", data.user_name);
+            localStorage.setItem("isLoggedIn", "true");
+    
+            alert(`${data.user_name}님 환영합니다!`);
+    
+            // navigate("/") 대신 아래 코드를 사용하세요.
+            window.location.href = "/"; 
+        } else {
+        alert("로그인 실패");
         }
+    } catch (error) {
+        console.error("에러 발생:", error);
+    }
     };
 
     return (

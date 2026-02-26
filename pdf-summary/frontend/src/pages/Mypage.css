@@ -1,0 +1,131 @@
+.mypage-container {
+  padding: 40px 10%;
+  background-color: #f8f9fa;
+  min-height: calc(100vh - 70px);
+}
+
+.mypage-content {
+  display: flex;
+  gap: 30px;
+}
+
+/* 프로필 카드 스타일 */
+.profile-card {
+  flex: 1;
+  background: white;
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  text-align: center;
+  height: fit-content;
+}
+
+.profile-image {
+  width: 80px;
+  height: 80px;
+  background: #3498db;
+  color: white;
+  font-size: 32px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  margin: 0 auto 15px;
+}
+
+.user-name { font-size: 20px; margin-bottom: 5px; }
+.user-id { color: #888; font-size: 14px; margin-bottom: 20px; }
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  margin: 20px 0;
+}
+
+.edit-btn {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* 히스토리 테이블 스타일 */
+.history-section {
+  flex: 3;
+  background: white;
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.history-table th {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 2px solid #eee;
+  color: #666;
+}
+
+.history-table td {
+  padding: 15px 12px;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+}
+
+.model-tag {
+  background: #e1f5fe;
+  color: #039be5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.status-badge {
+  color: #2ecc71;
+  font-weight: bold;
+}
+
+.action-btn {
+  margin-right: 5px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+}
+
+.action-btn.view { background: #3498db; color: white; }
+.action-btn.delete { background: #ff7675; color: white; }
+
+/* 회원 탈퇴 버튼 스타일 */
+.delete-account-btn {
+  width: 100%;
+  margin-top: 15px;
+  padding: 8px;
+  background: none;
+  border: 1px solid #ff7675; /* 액션 버튼 delete 색상 참고 */
+  color: #ff7675;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.delete-account-btn:hover {
+  background-color: #fff5f5; /* 마우스 올렸을 때 연한 빨간 배경 */
+  text-decoration: underline;
+}
+
+/* 프로필 카드 내부 구분선 보완 */
+.profile-card hr {
+  border: 0;
+  border-top: 1px solid #eee;
+  margin: 20px 0;
+}
