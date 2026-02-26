@@ -67,24 +67,24 @@ pdf-summary/
 
 ### `pdf_documents` 테이블
 
-| 컬럼 | 타입 | 설명 | 추가여부 |
-|------|------|------|----------|
-| id | INT | 자동 증가 PK | 기존 |
-| filename | VARCHAR(255) | 업로드 파일명 | 기존 |
-| extracted_text | LONGTEXT | PDF 원문 전체 | 기존 |
-| summary | LONGTEXT | AI 요약 결과 | 기존 |
-| model_used | VARCHAR(100) | 사용한 AI 모델명 | 기존 |
-| char_count | INT | 원문 글자 수 | 기존 |
-| created_at | DATETIME | 업로드 시간 | 기존 |
-| **original_translation** | **LONGTEXT** | **원문 영문 번역** | 🆕 |
-| **summary_translation** | **LONGTEXT** | **요약 영문 번역** | 🆕 |
-| **translation_model** | **VARCHAR(100)** | **번역 모델명** | 🆕 |
-| **extraction_time_seconds** | **DECIMAL(10,3)** | **추출 소요 시간** | 🆕 |
-| **summary_time_seconds** | **DECIMAL(10,3)** | **요약 소요 시간** | 🆕 |
-| **translation_time_seconds** | **DECIMAL(10,3)** | **번역 소요 시간** | 🆕 |
-| **file_size_bytes** | **BIGINT** | **파일 크기(바이트)** | 🆕 |
-| **total_pages** | **INTEGER** | **전체 페이지 수** | 🆕 |
-| **successful_pages** | **INTEGER** | **추출 성공 페이지 수** | 🆕 |
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | INT | 자동 증가 PK |
+| filename | VARCHAR(255) | 업로드 파일명 |
+| extracted_text | LONGTEXT | PDF 원문 전체 |
+| summary | LONGTEXT | AI 요약 결과 |
+| model_used | VARCHAR(100) | 사용한 AI 모델명 |
+| char_count | INT | 원문 글자 수 |
+| created_at | DATETIME | 업로드 시간 |
+| original_translation | LONGTEXT | 원문 영문 번역 |
+| summary_translation | LONGTEXT | 요약 영문 번역 |
+| translation_model | VARCHAR(100) | 번역 모델명 |
+| extraction_time_seconds | DECIMAL(10,3) | 추출 소요 시간 |
+| summary_time_seconds | DECIMAL(10,3) | 요약 소요 시간 |
+| translation_time_seconds | DECIMAL(10,3) | 번역 소요 시간 |
+| file_size_bytes | BIGINT | 파일 크기(바이트) |
+| total_pages | INTEGER | 전체 페이지 수 |
+| successful_pages | INTEGER | 추출 성공 페이지 수 |
 
 ---
 
