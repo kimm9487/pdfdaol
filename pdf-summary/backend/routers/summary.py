@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import Response
+from fastapi import Body
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from urllib.parse import quote
@@ -66,6 +67,7 @@ async def summarize_pdf(
         "extracted_text": extracted_text,
         "summary": summary,
         "model_used": model,
+        "user_id": user_id,
         "created_at": datetime.datetime.now().isoformat(),
         "timing": {
             "extraction_time": f"{extraction_time:.2f}초",
@@ -211,14 +213,27 @@ async def get_document(
 
 
 @router.get("/documents/{user_id}")
-async def get_user_documents(
+async def list_user_documents(
     user_id: int,
+    page: int = 1,
+    limit: int = 10,
     db: Session = Depends(get_db),
 ):
     """
-    사용자별 문서 목록 조회
+    사용자별 문서 목록 조회 (페이지네이션 지원)
+
+    Query params:
+    - page: 1-based 페이지 번호
+    - limit: 페이지당 항목 수
     """
-    documents = get_user_documents(db, user_id)
+    # call the helper imported from database.py (not this function)
+    all_docs = get_user_documents(db, user_id)
+    total = len(all_docs)
+
+    # slice according to pagination
+    start = (page - 1) * limit
+    end = start + limit
+    documents = all_docs[start:end]
     
     return {
         "documents": [
@@ -230,12 +245,18 @@ async def get_user_documents(
                 "file_size_bytes": doc.file_size_bytes,
                 "total_pages": doc.total_pages,
                 "successful_pages": doc.successful_pages,
+                # 전체 원문과 요약을 포함하도록 추가
+                "extracted_text": doc.extracted_text,
+                "summary": doc.summary,
                 "has_original_translation": bool(doc.original_translation),
                 "has_summary_translation": bool(doc.summary_translation),
                 "created_at": doc.created_at.isoformat() if doc.created_at else None,
             } for doc in documents
         ],
-        "total_count": len(documents)
+        "total_count": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit,
     }
 
 
@@ -257,6 +278,64 @@ async def download_summary(summary: str = Form(...), filename: str = Form(defaul
             "Content-Disposition": f"attachment; filename*=UTF-8''{quote(safe_filename)}"
         },
     )
+
+
+@router.put("/summarize/{doc_id}")
+async def update_summary(
+    doc_id: int,
+    user_id: int = Body(..., embed=True),  # 요청자의 ID, JSON의 {"user_id": ...}
+    summary: str = Body(..., embed=True),  # 요약 텍스트
+    db: Session = Depends(get_db)
+):
+    # 1. DB에서 해당 ID의 문서 찾기
+    doc = db.query(PdfDocument).filter(PdfDocument.id == doc_id).first()
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="해당 문서를 찾을 수 없습니다.")
+    
+    # --- 권한 검증 로직 ---
+    if doc.user_id != user_id:
+        raise HTTPException(status_code=403, detail="본인의 문서만 수정할 수 있습니다.")
+
+    # 2. 요약 내용 업데이트
+    doc.summary = summary
+    db.commit()
+    db.refresh(doc)
+
+    return {
+        "id": doc.id,
+        "message": "요약 내용이 성공적으로 업데이트되었습니다.",
+        "summary": doc.summary
+    }
+
+@router.delete("/summarize/{doc_id}")
+async def delete_summary(
+    doc_id: int, 
+    user_id: int = Form(...), 
+    db: Session = Depends(get_db)
+):
+    
+    doc = db.query(PdfDocument).filter(PdfDocument.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="삭제할 문서를 찾을 수 없습니다.")
+    
+    # --- 권한 검증 로직 ---
+    if doc.user_id != user_id:
+        raise HTTPException(status_code=403, detail="본인의 문서만 삭제할 수 있습니다.")
+    
+    
+    db.delete(doc)
+    db.commit()
+    return {"message": "성공적으로 삭제되었습니다."}
+
+@router.get("/history/{user_id}")
+async def get_user_history(user_id: str, db: Session = Depends(get_db)):
+    # 해당 유저의 문서를 최신순으로 가져옴
+    history = db.query(PdfDocument).filter(
+        PdfDocument.user_id == user_id
+    ).order_by(PdfDocument.id.desc()).all()
+    
+    return history
 
 
 @router.get("/admin/database-status")
