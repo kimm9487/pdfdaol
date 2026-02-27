@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Query
 from fastapi.responses import Response
 from fastapi import Body
 from sqlalchemy.orm import Session
@@ -178,11 +178,13 @@ async def translate_text(
 @router.get("/document/{document_id}")
 async def get_document(
     document_id: int,
-    user_id: int = Form(...),  # 사용자 ID 추가
+    user_id: int = Query(...),  # ===== [수정] GET 요청이므로 Query 파라미터로 변경 =====
     db: Session = Depends(get_db),
 ):
     """
     문서 ID로 전체 정보(원문, 요약, 번역 포함) 조회
+    
+    ===== [수정] GET 요청: user_id를 쿼리 파라미터로 받음 =====
     """
     # 사용자 권한 확인
     if not can_user_access_document(db, user_id, document_id):
@@ -216,7 +218,7 @@ async def get_document(
 async def list_user_documents(
     user_id: int,
     page: int = 1,
-    limit: int = 10,
+    limit: int = 100,  # 페이지당 항목 수 (기본값 100)
     db: Session = Depends(get_db),
 ):
     """
@@ -252,11 +254,7 @@ async def list_user_documents(
                 "has_summary_translation": bool(doc.summary_translation),
                 "created_at": doc.created_at.isoformat() if doc.created_at else None,
             } for doc in documents
-        ],
-        "total_count": total,
-        "page": page,
-        "limit": limit,
-        "total_pages": (total + limit - 1) // limit,
+        ]
     }
 
 
@@ -284,9 +282,16 @@ async def download_summary(summary: str = Form(...), filename: str = Form(defaul
 async def update_summary(
     doc_id: int,
     user_id: int = Body(..., embed=True),  # 요청자의 ID, JSON의 {"user_id": ...}
-    summary: str = Body(..., embed=True),  # 요약 텍스트
+    filename: str = Body(None, embed=True),  # ===== [수정] 파일명 수정 추가 =====
+    extracted_text: str = Body(None, embed=True),  # ===== [수정] 원문 수정 추가 =====
+    summary: str = Body(None, embed=True),  # 요약 텍스트
     db: Session = Depends(get_db)
 ):
+    """
+    문서 정보 수정 (파일명, 원문, 요약)
+    
+    ===== [수정] 파일명, 원문, 요약 모두 수정 가능하게 개선 =====
+    """
     # 1. DB에서 해당 ID의 문서 찾기
     doc = db.query(PdfDocument).filter(PdfDocument.id == doc_id).first()
     
@@ -294,35 +299,58 @@ async def update_summary(
         raise HTTPException(status_code=404, detail="해당 문서를 찾을 수 없습니다.")
     
     # --- 권한 검증 로직 ---
-    if doc.user_id != user_id:
-        raise HTTPException(status_code=403, detail="본인의 문서만 수정할 수 있습니다.")
+    # ===== [수정] can_user_access_document() 사용: 관리자도 수정 가능 =====
+    if not can_user_access_document(db, user_id, doc_id):
+        raise HTTPException(status_code=403, detail="이 문서를 수정할 권한이 없습니다.")
 
-    # 2. 요약 내용 업데이트
-    doc.summary = summary
+    # 2. 전달된 필드만 업데이트 (None이 아닌 것만)
+    # ===== [수정] 파일명, 원문, 요약 수정 추가 =====
+    if filename:
+        doc.filename = filename
+    
+    if extracted_text:
+        doc.extracted_text = extracted_text
+        # 추출된 텍스트 길이도 업데이트
+        doc.char_count = len(extracted_text)
+    
+    if summary:
+        doc.summary = summary
+    
+    # 최근 수정 시간 업데이트
+    doc.updated_at = datetime.datetime.now()
+    
     db.commit()
     db.refresh(doc)
 
     return {
         "id": doc.id,
-        "message": "요약 내용이 성공적으로 업데이트되었습니다.",
-        "summary": doc.summary
+        "message": "문서 정보가 성공적으로 업데이트되었습니다.",
+        "filename": doc.filename,
+        "summary": doc.summary,
+        "char_count": doc.char_count
     }
 
+# ===== [수정] 일반 사용자 문서 삭제 (본인의 문서만) =====
+# 권한 검증 개선: can_user_access_document() 함수 사용하여 관리자/일반유저 구분
 @router.delete("/summarize/{doc_id}")
 async def delete_summary(
     doc_id: int, 
     user_id: int = Form(...), 
     db: Session = Depends(get_db)
 ):
-    
+    """
+    문서 삭제 (본인의 문서만 삭제 가능)
+    - 일반 사용자: 본인 문서만 삭제 가능
+    - 관리자: /admin/documents/{doc_id} 별도 엔드포인트 사용
+    """
     doc = db.query(PdfDocument).filter(PdfDocument.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="삭제할 문서를 찾을 수 없습니다.")
     
-    # --- 권한 검증 로직 ---
-    if doc.user_id != user_id:
-        raise HTTPException(status_code=403, detail="본인의 문서만 삭제할 수 있습니다.")
-    
+    # ===== [수정] 권한 검증 로직: can_user_access_document() 활용 =====
+    # 이 함수는 관리자는 True, 일반유저는 본인 문서만 True 반환
+    if not can_user_access_document(db, user_id, doc_id):
+        raise HTTPException(status_code=403, detail="이 문서를 삭제할 권한이 없습니다.")
     
     db.delete(doc)
     db.commit()
@@ -336,6 +364,53 @@ async def get_user_history(user_id: str, db: Session = Depends(get_db)):
     ).order_by(PdfDocument.id.desc()).all()
     
     return history
+
+
+# ===== [추가] 관리자용 문서 삭제 API =====
+# 관리자만 모든 사용자의 문서를 삭제할 수 있음
+@router.delete("/admin/documents/{doc_id}")
+async def admin_delete_document(
+    doc_id: int,
+    user_id: int = Form(...),  # 요청한 사용자 ID (관리자인지 확인용)
+    db: Session = Depends(get_db)
+):
+    """
+    관리자용 문서 삭제 - 모든 문서 삭제 가능
+    
+    Args:
+        doc_id: 삭제할 문서 ID
+        user_id: 요청한 사용자 DB ID (관리자 권한 확인용)
+        
+    Returns:
+        {'message': str, 'deleted_document_id': int, 'deleted_filename': str}
+    """
+    # database.py에서 User 모델 import
+    from database import User as UserModel
+    
+    # 요청한 사용자가 관리자인지 확인
+    requester = db.query(UserModel).filter(UserModel.id == user_id).first()
+    
+    if not requester or requester.role != 'admin':
+        raise HTTPException(
+            status_code=403,
+            detail="관리자만 모든 문서를 삭제할 수 있습니다."
+        )
+    
+    # 문서 조회
+    doc = db.query(PdfDocument).filter(PdfDocument.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="삭제할 문서를 찾을 수 없습니다.")
+    
+    # 문서 삭제
+    deleted_filename = doc.filename
+    db.delete(doc)
+    db.commit()
+    
+    return {
+        "message": "관리자가 문서를 성공적으로 삭제했습니다.",
+        "deleted_document_id": doc_id,
+        "deleted_filename": deleted_filename
+    }
 
 
 @router.get("/admin/database-status")
@@ -446,21 +521,18 @@ async def get_database_status(db: Session = Depends(get_db)):
 
 @router.get("/admin/documents")
 async def list_all_documents(
-    page: int = 1,
-    limit: int = 10,
+    limit: int = Query(1000),  # 기본값을 1000으로 설정하여 모든 문서를 가져올 수 있도록 함
     db: Session = Depends(get_db)
 ):
     """
-    모든 문서 목록 조회 (페이징)
+    모든 문서 목록 조회
+    Query params:
+    - limit: 조회할 최대 항목 수 (기본값 1000)
     """
     try:
-        offset = (page - 1) * limit
-        
         documents = db.query(PdfDocument).order_by(
             PdfDocument.created_at.desc()
-        ).offset(offset).limit(limit).all()
-        
-        total_count = db.query(PdfDocument).count()
+        ).limit(limit).all()
         
         return {
             "documents": [
@@ -483,13 +555,7 @@ async def list_all_documents(
                     }
                 }
                 for doc in documents
-            ],
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total_count": total_count,
-                "total_pages": (total_count + limit - 1) // limit
-            }
+            ]
         }
         
     except Exception as e:
