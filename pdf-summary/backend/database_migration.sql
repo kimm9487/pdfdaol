@@ -1,38 +1,94 @@
+-- ========================================
+-- PDF 요약 서비스 데이터베이스 마이그레이션
+-- ========================================
 
 -- 1. 데이터베이스 생성 (없는 경우)
 CREATE DATABASE IF NOT EXISTS pdf_summary CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE pdf_summary;
 
--- 2. 기존 테이블이 있는 경우 컬럼 추가
-ALTER TABLE pdf_documents 
-  -- 번역 관련 컬럼
-  ADD COLUMN IF NOT EXISTS original_translation LONGTEXT COMMENT '원문 영문 번역',
-  ADD COLUMN IF NOT EXISTS summary_translation LONGTEXT COMMENT '요약 영문 번역',
-  ADD COLUMN IF NOT EXISTS translation_model VARCHAR(100) COMMENT '번역에 사용된 모델',
+-- ========================================
+-- 2. 사용자 관리 테이블
+-- ========================================
+CREATE TABLE IF NOT EXISTS users (
+  id INT NOT NULL AUTO_INCREMENT,
+  username VARCHAR(50) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  full_name VARCHAR(100),
+  role ENUM('admin','user'),
+  created_at DATETIME,
+  updated_at DATETIME,
+  last_login_at DATETIME,
+  is_active TINYINT(1),
   
-  -- 처리 시간 추적 컬럼
-  ADD COLUMN IF NOT EXISTS extraction_time_seconds DECIMAL(10,3) COMMENT '텍스트 추출 소요 시간(초)',
-  ADD COLUMN IF NOT EXISTS summary_time_seconds DECIMAL(10,3) COMMENT '요약 생성 소요 시간(초)',
-  ADD COLUMN IF NOT EXISTS translation_time_seconds DECIMAL(10,3) COMMENT '번역 소요 시간(초)',
-  
-  -- 파일 메타데이터 컬럼
-  ADD COLUMN IF NOT EXISTS file_size_bytes BIGINT COMMENT 'PDF 파일 크기(바이트)',
-  ADD COLUMN IF NOT EXISTS total_pages INTEGER COMMENT 'PDF 전체 페이지 수',
-  ADD COLUMN IF NOT EXISTS successful_pages INTEGER COMMENT '성공적으로 추출된 페이지 수';
+  PRIMARY KEY (id),
+  UNIQUE KEY ix_users_email (email),
+  UNIQUE KEY ix_users_username (username),
+  KEY ix_users_is_active (is_active),
+  KEY ix_users_role (role),
+  KEY ix_users_id (id)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 3. 기존 테이블이 없는 경우 새로 생성
+-- ========================================
+-- 3. 사용자 세션 테이블
+-- ========================================
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id INT NOT NULL AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  session_token VARCHAR(255) NOT NULL,
+  created_at DATETIME,
+  expires_at DATETIME NOT NULL,
+  is_active TINYINT(1),
+  ip_address VARCHAR(45),
+  user_agent TEXT,
+  
+  PRIMARY KEY (id),
+  UNIQUE KEY ix_user_sessions_session_token (session_token),
+  KEY user_id (user_id),
+  KEY ix_user_sessions_id (id),
+  KEY ix_user_sessions_expires_at (expires_at),
+  KEY ix_user_sessions_is_active (is_active),
+  CONSTRAINT user_sessions_ibfk_1 FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+-- ========================================
+-- 4. 관리자 활동 로그 테이블
+-- ========================================
+CREATE TABLE IF NOT EXISTS admin_activity_logs (
+  id INT NOT NULL AUTO_INCREMENT,
+  admin_user_id INT NOT NULL,
+  action VARCHAR(100) NOT NULL,
+  target_type VARCHAR(50),
+  target_id INT,
+  details TEXT,
+  created_at DATETIME,
+  ip_address VARCHAR(45),
+  
+  PRIMARY KEY (id),
+  KEY admin_user_id (admin_user_id),
+  KEY ix_admin_activity_logs_action (action),
+  KEY ix_admin_activity_logs_id (id),
+  KEY ix_admin_activity_logs_created_at (created_at),
+  CONSTRAINT admin_activity_logs_ibfk_1 FOREIGN KEY (admin_user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+-- ========================================
+-- 5. PDF 문서 테이블
+-- ========================================
 CREATE TABLE IF NOT EXISTS pdf_documents (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id INT NOT NULL AUTO_INCREMENT,
   filename VARCHAR(255) NOT NULL,
   extracted_text LONGTEXT,
   summary LONGTEXT,
   model_used VARCHAR(100),
   char_count INT DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  user_id INT,
   
   -- 번역 관련 필드
   original_translation LONGTEXT COMMENT '원문 영문 번역',
-  summary_translation LONGTEXT COMMENT '요약 영문 번역',  
+  summary_translation LONGTEXT COMMENT '요약 영문 번역',
   translation_model VARCHAR(100) COMMENT '번역에 사용된 모델',
   
   -- 처리 시간 추적 필드
@@ -42,20 +98,27 @@ CREATE TABLE IF NOT EXISTS pdf_documents (
   
   -- 파일 메타데이터 필드
   file_size_bytes BIGINT COMMENT 'PDF 파일 크기(바이트)',
-  total_pages INTEGER COMMENT 'PDF 전체 페이지 수',
-  successful_pages INTEGER COMMENT '성공적으로 추출된 페이지 수',
+  total_pages INT COMMENT 'PDF 전체 페이지 수',
+  successful_pages INT COMMENT '성공적으로 추출된 페이지 수',
   
-  INDEX idx_filename (filename),
-  INDEX idx_created_at (created_at)
-) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  PRIMARY KEY (id)
+) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. 테이블 구조 확인
-DESCRIBE pdf_documents;
-
--- 5. 통계 정보 확인용 쿼리들
+-- ========================================
+-- 6. 통계 정보 확인용 쿼리 (필요할 때 실행)
+-- ========================================
 /*
+-- 전체 사용자 수
+SELECT COUNT(*) as total_users FROM users WHERE is_active = 1;
+
 -- 전체 문서 수
 SELECT COUNT(*) as total_documents FROM pdf_documents;
+
+-- 사용자별 문서 수
+SELECT u.username, COUNT(d.id) as document_count 
+FROM users u 
+LEFT JOIN pdf_documents d ON u.id = d.user_id 
+GROUP BY u.id, u.username;
 
 -- 번역 완료된 문서 수
 SELECT 
@@ -83,4 +146,16 @@ SELECT
 FROM pdf_documents 
 WHERE file_size_bytes IS NOT NULL
 GROUP BY file_size_range;
+
+-- 최근 활동
+SELECT u.username, aal.action, aal.created_at 
+FROM admin_activity_logs aal 
+JOIN users u ON aal.admin_user_id = u.id 
+ORDER BY aal.created_at DESC LIMIT 10;
+
+-- 활성 세션
+SELECT u.username, COUNT(us.id) as active_sessions 
+FROM users u 
+LEFT JOIN user_sessions us ON u.id = us.user_id AND us.is_active = 1 
+GROUP BY u.id, u.username;
 */
