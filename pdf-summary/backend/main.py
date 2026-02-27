@@ -28,7 +28,7 @@ app.include_router(summary_router, prefix="/api", tags=["summary"])
 # React 개발 서버(5173)와 frontend_old(5500)와의 통신을 위한 CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5500", "http://localhost:5500"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5500","http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -171,8 +171,8 @@ def get_admin_documents(db: Session = Depends(get_db)):
             users = db.query(User).all()
             for u in users:
                 docs.append({
-                    "id": u.user_no,
-                    "filename": f"미등록 문서(사용자: {u.user_name})",
+                    "id": u.id,
+                    "filename": f"미등록 문서(사용자: {u.full_name})",
                     "created_at": None,
                     "char_count": 0,
                     "successful_pages": 0,

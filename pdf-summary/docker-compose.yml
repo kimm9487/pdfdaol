@@ -1,0 +1,30 @@
+services:
+  # 1. 백엔드 서비스
+  backend:
+    build: ./backend         # backend 폴더의 Dockerfile을 찾아 빌드
+    container_name: pdf_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=192.168.0.151
+      - DB_PORT=3306
+      - DB_USER=appuser1
+      - DB_PASSWORD=1111
+      - DB_NAME=pdf_summary
+    volumes:
+      - ./backend:/app       # 코드 수정 시 바로 반영되도록 연결
+
+  # 2. 프론트엔드 서비스
+  frontend:
+    build: ./frontend        # frontend 폴더의 Dockerfile을 찾아 빌드
+    container_name: pdf_frontend
+    ports:
+      - "5173:5173"          # Vite 기본 포트
+    environment:
+      # 프론트에서 백엔드로 요청을 보낼 주소
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend              # 백엔드가 먼저 켜진 후 프론트가 켜지도록 설정
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules    # 로컬과 도커의 노드 모듈 충돌 방지
