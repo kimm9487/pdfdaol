@@ -82,7 +82,7 @@ async def summarize_pdf(
     # ===== [추가] 문서 카테고리 자동 분류[규호] =====
     try:
         category_start = time.time()
-        category = await categorize_document(extracted_text, summary, model)
+        category = await categorize_document(title=file.filename, model=model)
         category_time = time.time() - category_start
         
         doc.category = category
@@ -438,79 +438,6 @@ async def get_database_status(db: Session = Depends(get_db)):
                 "error": "데이터베이스 상태 확인 실패",
                 "message": str(e)
             }
-        )
-
-@router.get("/admin/documents")
-async def list_all_documents(
-    page: int = 1,
-    limit: int = 10,
-    db: Session = Depends(get_db)
-):
-    """
-    모든 문서 목록 조회 (페이징)
-    """
-    try:
-        offset = (page - 1) * limit
-        
-        # [재훈] 2026-03-01 추가: joinedload로 User 정보 함께 로드 (users 테이블 JOIN)
-        # 이 한 줄로 pdf_documents.user_id → users.full_name, username 자동 매핑 가능
-        # 전체 사용자 요약 목록을 동적으로 표시하기 위한 핵심 수정
-        documents = (
-            db.query(PdfDocument)
-            .options(joinedload(PdfDocument.owner))  # User 관계 로드
-            .order_by(PdfDocument.created_at.desc())
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
-        
-        total_count = db.query(PdfDocument).count()
-        
-        return {
-            "documents": [
-                {
-                    "id": doc.id,
-                    "filename": doc.filename,
-                    "created_at": doc.created_at.isoformat() if doc.created_at else None,
-                    "char_count": doc.char_count,
-                    "model_used": doc.model_used,
-                    "translation_model": doc.translation_model,
-                    "has_original_translation": bool(doc.original_translation),
-                    "has_summary_translation": bool(doc.summary_translation),
-                    "file_size_bytes": doc.file_size_bytes,
-                    "total_pages": doc.total_pages,
-                    "successful_pages": doc.successful_pages,
-                    "processing_times": {
-                        "extraction": float(doc.extraction_time_seconds) if doc.extraction_time_seconds else None,
-                        "summary": float(doc.summary_time_seconds) if doc.summary_time_seconds else None,
-                        "translation": float(doc.translation_time_seconds) if doc.translation_time_seconds else None
-                    },
-                    # [재훈] 2026-03-01 추가: 프론트에서 사용자 이름 표시 & 강조를 위해 실제 User 정보 포함
-                    # 회원가입 추가 시마다 자동으로 새로운 사용자 이름 반영 (동적 매핑)
-                    "user": {
-                        "id": doc.owner.id if doc.owner else None,
-                        "username": doc.owner.username if doc.owner else None,
-                        "full_name": doc.owner.full_name if doc.owner else "알수없음"
-                    },
-                    # [재훈] 2026-03-01 추가: 보기 버튼 클릭 시 summary를 바로 보여주기 위해 미리 포함
-                    # 별도 상세 API 호출 없이도 요약 내용 표시 가능 (네트워크 최적화 + 동적 구현)
-                    "summary": doc.summary if doc.summary else "요약 내용이 없습니다."
-                
-                }
-                for doc in documents
-            ],
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total_count": total_count,
-                "total_pages": (total_count + limit - 1) // limit
-            }
-        }
-       
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"문서 목록 조회 실패: {str(e)}"
         )
 
 # ────────────────────────────────────────────────────────────────

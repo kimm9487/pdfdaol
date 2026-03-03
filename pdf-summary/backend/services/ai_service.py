@@ -160,53 +160,42 @@ async def get_available_models() -> list:
         return []
 
 
-async def categorize_document(text: str, summary: str = "", model: str = DEFAULT_MODEL) -> str:
+async def categorize_document(title: str = "", model: str = DEFAULT_MODEL) -> str:
     """
-    PDF 문서의 내용을 분석하여 카테고리를 분류합니다.
+    PDF 문서의 제목을 분석하여 카테고리를 분류합니다.
     
     카테고리:
-    - 강의: 교육, 강의, 수업, 학습 관련 내용
-    - 법률안: 법안, 법률, 규정, 조항, 시행령 등 법적 문서
-    - 보고서: 보고서, 분석, 통계, 현황 등 보고 성질의 문서  
-    - 기타: 위의 카테고리에 해당하지 않는 기타 문서
+    - 강의: 교육, 강의, 수업, 학습 관련 제목
+    - 법률안: 법안, 법률, 규정, 조항, 시행령 등 법적 제목
+    - 보고서: 보고서, 분석, 통계, 현황 등 보고 성질의 제목
+    - 기타: 위의 카테고리에 해당하지 않는 기타 제목
     
     Args:
-        text: 추출된 원문 텍스트
-        summary: 생성된 요약 (선택사항)
+        title: 문서 제목 (예: 파일명)
         model: 사용할 AI 모델
         
     Returns:
         분류된 카테고리: '강의', '법률안', '보고서', '기타' 중 하나
     """
     # 먼저 폴백(키워드 기반) 분류를 시도해서 정확도 높임
-    fallback_category = _fallback_categorize(text, summary)
+    fallback_category = _fallback_categorize_by_title(title)
     
     # 폴백 분류가 "기타"가 아니면 그것을 사용 (더 확실함)
     if fallback_category != "기타":
         return fallback_category
     
     # 폴백이 "기타"인 경우만 AI 분류 시도
-    # 분류할 텍스트 준비 (요약이 있으면 요약 + 원문의 처음 부분 사용)
-    classification_text = ""
-    if summary:
-        classification_text = summary
-    
-    if len(text) > 3000:
-        classification_text += "\n\n" + text[:3000]
-    else:
-        classification_text += "\n\n" + text
-    
-    prompt = f"""다음 문서의 내용을 분석하여 정확히 하나의 카테고리로 분류해줘.
+    prompt = f"""다음 문서의 제목을 분석하여 정확히 하나의 카테고리로 분류해줘.
     
 카테고리 정의:
-1. 강의: 교육, 강의, 수업, 학습, 교과서, 튜토리얼 등 교육 목적의 문서
-2. 법률안: 법안, 법률, 법령, 규정, 시행령, 조항, 법적 조항 등 법적 성질의 문서
-3. 보고서: 보고서, 리포트, 분석 보고서, 통계, 현황 보고, 연간 보고서 등 보고 성질의 문서
-4. 기타: 위의 세 카테고리에 명확하게 해당하지 않는 모든 문서
+1. 강의: 교육, 강의, 수업, 학습, 교과서, 튜토리얼 등 교육 목적의 제목
+2. 법률안: 법안, 법률, 법령, 규정, 시행령, 조항, 법적 조항 등 법적 성질의 제목
+3. 보고서: 보고서, 리포트, 분석 보고서, 통계, 현황 보고, 연간 보고서 등 보고 성질의 제목
+4. 기타: 위의 세 카테고리에 명확하게 해당하지 않는 모든 제목
 
-분석할 문서:
+분석할 문서 제목:
 ---
-{classification_text}
+{title}
 ---
 
 응답 형식:
@@ -260,6 +249,93 @@ async def categorize_document(text: str, summary: str = "", model: str = DEFAULT
         # 오류 발생 시 폴백 분류 사용
         print(f"⚠️ AI 분류 실패: {str(e)}, 폴백 사용: {fallback_category}")
         return fallback_category
+
+
+def _fallback_categorize_by_title(title: str) -> str:
+    """
+    문서 제목만을 기반으로 키워드 기반 폴백 분류를 수행합니다.
+    """
+    # 제목을 소문자로 변환
+    search_text = title.lower()
+    
+    # ===== [강의] 교육/학습 관련 키워드 =====
+    lecture_keywords = {
+        # 핵심 키워드
+        "강의": 3, "수업": 3, "교육": 2, "학습": 2, "교과서": 3, "강의교안": 3,
+        # 관련 키워드
+        "학생": 2, "교사": 2, "교수": 2, "튜토리얼": 3, "온라인 강좌": 3,
+        "수강": 2, "과목": 2, "교과": 2, "학습 목표": 3, "강의 내용": 3,
+        "수강생": 2, "교실": 2, "학급": 2, "학년": 2, "학기": 1,
+        "시험": 1, "문제": 1, "해답": 1, "풀이": 1, "연습문제": 2,
+        "강의 자료": 3, "강의 노트": 3, "수강 신청": 2, "교육 과정": 2,
+        "학습 내용": 2, "수업 자료": 2, "교육 자료": 2, "강좌": 2,
+        "수련": 1, "훈련": 1, "워크숍": 2, "세미나": 2, "강습": 2,
+        "기초": 1, "입문": 1, "초급": 1, "중급": 1, "고급": 1,
+        "한국어": 1, "영어": 1, "수학": 1, "과학": 1, "역사": 1
+    }
+    
+    # ===== [법률안] 법률/규정 관련 키워드 =====
+    law_keywords = {
+        # 핵심 키워드
+        "법안": 4, "법률": 3, "법령": 3, "규정": 3, "조항": 3, "의안":4,
+        # 관련 키워드
+        "시행령": 3, "시행규칙": 3, "법적": 2, "제정": 2, "개정": 2,
+        "조례": 3, "의안": 3, "의회": 2, "국회": 2, "입법": 2,
+        "판례": 2, "계약": 2, "약관": 2, "조건": 1, "의원": 1,
+        "법무": 2, "판사": 2, "검사": 2, "변호사": 2, "소송": 2,
+        "권리": 1, "의무": 1, "책임": 1, "위반": 1, "처벌": 1,
+        "조직법": 3, "형법": 3, "민법": 3, "행정법": 3, "상법": 3,
+        "법인": 2, "개인": 1, "기관": 1, "부서": 1, "직책": 1,
+        "규격": 1, "기준": 1, "표준": 1, "준칙": 2, "지침": 1,
+        "허가": 1, "인가": 1, "승인": 1, "신청": 1, "절차": 1,
+        "효력": 1, "발효": 1, "구속력": 2, "법적효력": 3
+    }
+    
+    # ===== [보고서] 보고/분석 관련 키워드 =====
+    report_keywords = {
+        # 핵심 키워드
+        "보고서": 4, "보고": 2, "리포트": 3, "분석": 2, "통계": 3,
+        # 관련 키워드
+        "현황": 2, "결과": 1, "조사": 2, "데이터": 2, "연간": 2,
+        "월간": 2, "분기": 2, "실적": 2, "평가": 2, "진행": 1,
+        "현황 보고": 4, "기간 완료": 2, "포함": 1, "자료": 1, "수치": 1,
+        "그래프": 1, "차트": 1, "표": 1, "요약": 1, "결론": 1,
+        "분석 결과": 3, "조사 결과": 3, "통계 자료": 3, "통계 현황": 3,
+        "성과": 1, "진행상황": 2, "진행현황": 2, "상황": 1, "개요": 1,
+        "연도별": 2, "년도": 1, "기준": 1, "기준일": 1, "말": 1,
+        "지표": 1, "지수": 1, "비율": 1, "백분율": 1, "수준": 1
+    }
+    
+    # ===== 점수 계산 =====
+    def calculate_score(keywords_dict: dict, text: str) -> float:
+        """키워드 딕셔너리를 기반으로 점수를 계산합니다."""
+        score = 0
+        for keyword, weight in keywords_dict.items():
+            count = text.count(keyword)
+            score += count * weight
+        return score
+    
+    lecture_score = calculate_score(lecture_keywords, search_text)
+    law_score = calculate_score(law_keywords, search_text)
+    report_score = calculate_score(report_keywords, search_text)
+    
+    # ===== 점수 기반 분류 =====
+    scores = {
+        "강의": lecture_score,
+        "법률안": law_score,
+        "보고서": report_score
+    }
+    
+    max_score = max(scores.values())
+    
+    # 최소 점수 기준 (점수가 너무 낮으면 기타로 분류)
+    MIN_THRESHOLD = 1
+    
+    if max_score > MIN_THRESHOLD:
+        max_category = max(scores, key=scores.get)
+        return max_category
+    
+    return "기타"
 
 
 def _fallback_categorize(text: str, summary: str = "") -> str:
