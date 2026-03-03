@@ -114,6 +114,80 @@ def check_id(user_id: str, db: Session = Depends(get_db)):
         "message": "사용 가능한 아이디입니다."
     }
 
+# ===== [추가] 프로필 조회 API =====
+# MyPage에서 로그인된 사용자의 프로필 정보(이메일)를 조회
+@app.get("/auth/profile/{user_db_id}")
+def get_user_profile(user_db_id: int, db: Session = Depends(get_db)):
+    """
+    사용자 프로필 정보 조회
+    Args:
+        user_db_id: 사용자 DB ID
+    Returns:
+        {'username': str, 'full_name': str, 'email': str, 'role': str}
+    """
+    user = db.query(User).filter(User.id == user_db_id, User.is_active == True).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    
+    return {
+        "username": user.username,
+        "full_name": user.full_name,
+        "email": user.email,
+        "role": user.role
+    }
+
+# ===== [추가] 프로필 수정 API (이메일, 비밀번호) =====
+# MyPage에서 사용자가 본인의 이메일과 비밀번호를 수정
+@app.put("/auth/profile/{user_db_id}")
+def update_user_profile(
+    user_db_id: int,
+    email: str = Form(None),
+    new_password: str = Form(None),
+    current_password: str = Form(...),  # 비밀번호 변경 시 현재 비밀번호 확인
+    db: Session = Depends(get_db)
+):
+    """
+    사용자 프로필 수정 (이메일, 비밀번호)
+    Args:
+        user_db_id: 수정할 사용자 DB ID
+        email: 새 이메일 (선택사항)
+        new_password: 새 비밀번호 (선택사항)
+        current_password: 현재 비밀번호 (필수 - 보안 확인)
+    """
+    user = db.query(User).filter(User.id == user_db_id, User.is_active == True).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    
+    # 현재 비밀번호 검증
+    if not verify_password(current_password, user.password_hash):
+        raise HTTPException(status_code=401, detail="현재 비밀번호가 틀렸습니다.")
+    
+    # 이메일 수정
+    if email:
+        # 이메일 중복 확인
+        existing_email = db.query(User).filter(
+            User.email == email,
+            User.id != user_db_id
+        ).first()
+        if existing_email:
+            raise HTTPException(status_code=400, detail="이미 사용 중인 이메일입니다.")
+        user.email = email
+    
+    # 비밀번호 수정
+    if new_password:
+        if len(new_password) < 6:
+            raise HTTPException(status_code=400, detail="비밀번호는 6자 이상이어야 합니다.")
+        user.password_hash = hash_password(new_password)
+    
+    db.commit()
+    
+    return {
+        "message": "프로필이 성공적으로 수정되었습니다.",
+        "username": user.username,
+        "full_name": user.full_name,
+        "email": user.email
+    }
+
 # [로그인 / 회원가입 관련 api는 위에 정의됨]
 # summary 라우터는 /api prefix로 등록됨: summarize, translate, models 등
 

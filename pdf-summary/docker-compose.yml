@@ -6,6 +6,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+
       - DB_HOST=192.168.0.151
       - DB_PORT=3306
       - DB_USER=appuser1
@@ -28,3 +29,6 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules    # 로컬과 도커의 노드 모듈 충돌 방지
+
+
+

@@ -8,16 +8,31 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState({ db: true, docs: true });
     const [error, setError] = useState(null);
 
+    // ===== [추가] 페이지네이션 상태 =====
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10; // 한 페이지에 10개씩 표시
+
+    // ===== [추가] 페이지네이션 계산 =====
+    const totalPages = Math.ceil(documents.length / itemsPerPage);
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = documents.slice(indexOfFirstItem, indexOfLastItem);
+
     // 데이터베이스 상태 로드
     const loadDatabaseStatus = async () => {
         setLoading(prev => ({ ...prev, db: true }));
         try {
-            const response = await fetch(`${API_BASE}/admin/database-status`);
+            const response = await fetch(`${API_BASE}/admin/database-status`, {
+                cache: 'no-store'  // 캐시 비활성화
+            });
+            if (!response.ok) {
+                throw new Error('DB 상태 확인 실패');
+            }
             const data = await response.json();
-            if (!response.ok) throw new Error(data.detail?.message || 'DB 상태 확인 실패');
             setDbStatus(data);
         } catch (err) {
             setError(err.message);
+            console.error('DB 상태 로드 오류:', err);
         } finally {
             setLoading(prev => ({ ...prev, db: false }));
         }
@@ -26,13 +41,26 @@ const AdminDashboard = () => {
     // 문서 목록 로드
     const loadDocuments = async () => {
         setLoading(prev => ({ ...prev, docs: true }));
+        setError(null);  // 이전 오류 초기화
         try {
-            const response = await fetch(`${API_BASE}/admin/documents`);
+            const response = await fetch(`${API_BASE}/admin/documents?limit=1000`, {
+                cache: 'no-store'  // 캐시 비활성화
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: 문서 목록 조회 실패`);
+            }
             const data = await response.json();
-            if (!response.ok) throw new Error(data.detail || '문서 목록 조회 실패');
-            setDocuments(data.documents);
+            if (data && Array.isArray(data.documents)) {
+                setDocuments(data.documents);
+                setCurrentPage(1);
+            } else {
+                console.warn('예상치 못한 응답 형식:', data);
+                throw new Error('응답 형식이 올바르지 않습니다');
+            }
         } catch (err) {
             setError(err.message);
+            console.error('문서 로드 오류:', err);
+            setDocuments([]);  // 오류 시 문서 목록 초기화
         } finally {
             setLoading(prev => ({ ...prev, docs: false }));
         }
@@ -87,43 +115,106 @@ const AdminDashboard = () => {
                         <span>📄 문서 목록</span>
                         <button className="btn-refresh" onClick={loadDocuments}>새로고침</button>
                     </div>
+                    {error && <div className="error">오류: {error}</div>}
                     {loading.docs ? (
                         <div className="loading">목록을 불러오는 중...</div>
+                    ) : documents.length === 0 ? (
+                        <div className="loading">문서 목록이 없습니다</div>
                     ) : (
-                        <div className="table-container">
-                            <table className="admin-table">
-                               <thead>
-                                   <tr>
-                                       <th>ID</th>
-                                       <th>파일명</th>
-                                       <th>원문번역</th>
-                                       <th>요약번역</th>
-                                       <th>처리시간</th>
-                                   </tr>
-                               </thead>
-                               <tbody>
-                                   {documents.map(doc => (
-                                       <tr key={doc.id}>
-                                           <td>{doc.id}</td>
-                                           <td title={doc.filename}>{doc.filename}</td>
-                                           <td>
-                                               <span className={`badge ${doc.has_original_translation ? 'badge-success' : 'badge-danger'}`}>
-                                                   {doc.has_original_translation ? '완료' : '미완료'}
-                                               </span>
-                                           </td>
-                                           <td>
-                                               <span className={`badge ${doc.has_summary_translation ? 'badge-success' : 'badge-danger'}`}>
-                                                   {doc.has_summary_translation ? '완료' : '미완료'}
-                                               </span>
-                                           </td>
-                                           <td>
-                                               <small>요약: {doc.processing_times.summary?.toFixed(1)}s</small>
-                                           </td>
+                        <>
+                            <div className="table-container">
+                                <table className="admin-table">
+                                   <thead>
+                                       <tr>
+                                           <th>ID</th>
+                                           <th>파일명</th>
+                                           <th>원문번역</th>
+                                           <th>요약번역</th>
+                                           <th>처리시간</th>
                                        </tr>
-                                   ))}
-                               </tbody>
-                            </table>
-                        </div>
+                                   </thead>
+                                   <tbody>
+                                       {/* ===== [수정] documents → currentItems로 변경: 현재 페이지의 항목만 표시 ===== */}
+                                       {currentItems.map(doc => (
+                                           <tr key={doc.id}>
+                                               <td>{doc.id}</td>
+                                               <td title={doc.filename}>{doc.filename}</td>
+                                               <td>
+                                                   <span className={`badge ${doc.has_original_translation ? 'badge-success' : 'badge-danger'}`}>
+                                                       {doc.has_original_translation ? '완료' : '미완료'}
+                                                   </span>
+                                               </td>
+                                               <td>
+                                                   <span className={`badge ${doc.has_summary_translation ? 'badge-success' : 'badge-danger'}`}>
+                                                       {doc.has_summary_translation ? '완료' : '미완료'}
+                                                   </span>
+                                               </td>
+                                               <td>
+                                                   <small>요약: {doc.processing_times.summary?.toFixed(1)}s</small>
+                                               </td>
+                                           </tr>
+                                       ))}
+                                   </tbody>
+                                </table>
+                            </div>
+                            
+                            {/* ===== [추가] 페이지네이션 UI ===== */}
+                            {documents.length > 0 && (
+                                <div className="pagination">
+                                    <button
+                                        className="pagination-btn"
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                        disabled={currentPage === 1}
+                                    >
+                                        ❮ 이전
+                                    </button>
+
+                                    <div className="pagination-numbers">
+                                        {Array.from({ length: totalPages }, (_, i) => {
+                                            const pageNum = i + 1;
+                                            const isVisible = 
+                                                pageNum === 1 || 
+                                                pageNum === totalPages ||
+                                                (pageNum >= currentPage - 1 && pageNum <= currentPage + 1);
+
+                                            if (!isVisible && i !== 0 && i !== 1) {
+                                                return null;
+                                            }
+
+                                            if (!isVisible && (i === 1 || i === totalPages - 2)) {
+                                                return <span key={`dots-${i}`} className="pagination-dots">...</span>;
+                                            }
+
+                                            return (
+                                                <button
+                                                    key={pageNum}
+                                                    className={`pagination-number ${currentPage === pageNum ? 'active' : ''}`}
+                                                    onClick={() => setCurrentPage(pageNum)}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            );
+                                        }).filter(Boolean)}
+                                    </div>
+
+                                    <button
+                                        className="pagination-btn"
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                        disabled={currentPage === totalPages}
+                                    >
+                                        다음 ❯
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* ===== [추가] 페이지 정보 표시 ===== */}
+                            {documents.length > 0 && (
+                                <div className="pagination-info">
+                                    <span>{currentPage} / {totalPages} 페이지</span>
+                                    <span>({documents.length}개 항목)</span>
+                                </div>
+                            )}
+                        </>
                     )}
                 </section>
             </div>

@@ -19,3 +19,4 @@ COPY . .
 
 # 6. 서버 실행 (python main.py 방식 유지)
 CMD ["python", "main.py"]
+

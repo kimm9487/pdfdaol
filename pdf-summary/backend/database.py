@@ -108,6 +108,9 @@ class PdfDocument(Base):
     total_pages = Column(Integer, comment="PDF 전체 페이지 수")
     successful_pages = Column(Integer, comment="성공적으로 추출된 페이지 수")
     
+    # 문서 분류 필드
+    category = Column(Enum('강의', '법률안', '보고서', '기타', name='document_categories'), default='기타', nullable=False, index=True, comment="문서 카테고리 (강의, 법률안, 보고서, 기타)")
+    
     # 관계 설정
     owner = relationship("User", back_populates="documents")
 
