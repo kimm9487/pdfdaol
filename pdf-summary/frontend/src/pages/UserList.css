@@ -1,0 +1,542 @@
+/* src/pages/UserList.css */
+
+/* 기본 레이아웃 */
+.summary-list-page {
+  padding: 40px 5%;
+  background: #f8f9fa;
+  font-family: "Malgun Gothic", "맑은 고딕", sans-serif;
+}
+
+/* 제목 */
+.title-wrapper {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.title-bar {
+  width: 6px;
+  height: 32px;
+  background: #3b82f6;
+  margin-right: 12px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: bold;
+  color: #000;
+}
+
+/* 설명 박스 */
+.description-box {
+  display: flex;
+  align-items: center;
+  background: #eff6ff;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 28px;
+}
+
+/* 설명 + 다운로드 버튼 한 줄 배치 */
+.description-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.description-box {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 다운로드 버튼 */
+.download-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.download-btn:hover {
+  background: #2563eb;
+}
+
+/* 하단 바 - 페이지네이션 + 우측 선택 */
+.list-bottom-bar {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.blue-icon {
+  font-size: 20px;
+  margin-right: 12px;
+  color: #1d4ed8;
+}
+
+/* 필터 바 - 스크린샷처럼 완전히 붙은 직사각형 */
+.filter-container {
+  margin: 24px 0 32px;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: stretch;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* 검색창 */
+.search-group {
+  flex: 1;
+  position: relative;
+  min-width: 260px;
+}
+
+.search-group input {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px 0 40px;
+  border: none;
+  border-right: 1px solid #d1d5db;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  color: #000;
+}
+
+/* 셀렉트 - 역삼각형 화살표 */
+.filter-bar select {
+  height: 42px;
+  padding: 0 28px 0 14px;
+  border: none;
+  border-right: 1px solid #d1d5db;
+  background: white;
+  font-size: 14px;
+  min-width: 140px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23000' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 10px 6px;
+  cursor: pointer;
+}
+
+/* 마지막 셀렉트 구분선 제거 */
+.filter-bar select:last-of-type {
+  border-right: none;
+}
+
+/* 검색 버튼 */
+.search-btn {
+  height: 42px;
+  padding: 0 24px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+/* 테이블 */
+.table-wrapper {
+  overflow-x: auto;
+  background: white;
+  border: 1px solid #e0e0e0;
+}
+
+.summary-table {
+  width: 100%;
+  min-width: 1000px;
+  border-collapse: collapse;
+  table-layout: fixed; /* 핵심 - 열 너비 고정 */
+}
+
+.summary-table th {
+  background: #0f172a;
+  color: white;
+  padding: 12px 12px;
+  text-align: left;
+  font-size: 14px;
+  border-bottom: 2px solid #334155;
+}
+
+/* # 열 고정 너비 - 흔들림 완전 제거 */
+.summary-table th:first-child,
+.summary-table td:first-child {
+  width: 60px;
+  min-width: 60px;
+  max-width: 60px;
+  text-align: center;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+/* 나머지 열 자동 분배 */
+.summary-table th:not(:first-child),
+.summary-table td:not(:first-child) {
+  width: auto;
+}
+
+.summary-table td {
+  padding: 12px 12px;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+  position: relative;
+}
+
+/* 내 요약 항목 강조 */
+.my-item {
+  background: #f0f9ff;
+}
+
+.my-item td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #3b82f6;
+}
+
+/* 상태 뱃지 */
+.status-badge {
+  background: #e6fffa;
+  color: #0f766e;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+/* 보기 버튼 */
+.view-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* 페이지네이션 */
+.pagination-section {
+  margin-top: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.pagination {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  min-width: 200px;
+}
+
+/* 좌측 "내 요약 항목" 표시 */
+.pagination-left {
+  flex: 0 0 auto;
+}
+
+.items-per-page {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #555;
+}
+
+.items-per-page select {
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+}
+
+.my-summary-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #555;
+}
+
+.blue-bar {
+  width: 12px;
+  height: 12px;
+  background: #3b82f6;
+  border-radius: 2px;
+}
+
+.my-summary-text {
+  font-weight: 500;
+}
+
+.pagination {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.page-arrow,
+.page-number {
+  padding: 8px 14px;
+  border: 1px solid #ccc;
+  background: white;
+  min-width: 40px;
+  cursor: pointer;
+  text-align: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.page-number:hover,
+.page-arrow:hover {
+  background: #e0f2fe;
+}
+
+.page-number.active {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+/* 하단 설명 박스 */
+.bottom-notes-grid {
+  margin-top: 48px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.note-box {
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.note-title {
+  display: flex;
+  align-items: center;
+  font-weight: bold;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.note-icon {
+  margin-right: 8px;
+  font-size: 18px;
+}
+
+.blue-dot {
+  color: #3b82f6;
+  font-size: 20px;
+}
+
+.note-box p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: #555;
+}
+
+/* [재훈] 2026-03-01 추가: 요약 내용 전용 간단 모달 스타일 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 85%;
+  max-width: 800px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 28px;
+  position: relative;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  background: none;
+  border: none;
+  font-size: 32px;
+  cursor: pointer;
+  color: #888;
+}
+
+.modal-close:hover {
+  color: #333;
+}
+
+.modal-text {
+  background: #f9fafb;
+  padding: 20px;
+  border-radius: 10px;
+  white-space: pre-wrap;
+  font-size: 15px;
+  line-height: 1.8;
+  border: 1px solid #e5e7eb;
+}
+
+/* [재훈] 2026-03-01 대안: 정말 얇고 미니멀한 하이라이트 */
+.highlight {
+  background-color: rgba(59, 130, 246, 0.15);
+  border-bottom: 2px solid #3b82f6;
+  padding-bottom: 1px;
+  transition: all 0.2s ease;
+}
+
+.highlight:hover {
+  background-color: rgba(59, 130, 246, 0.25);
+  border-bottom-color: #2563eb;
+}
+
+/* [정재훈] 2026-03-02 추가: 체크박스 스타일 */
+.summary-table th:first-child,
+.summary-table td:first-child {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  text-align: center;
+}
+
+.summary-table input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.summary-table input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* [정재훈] 2026-03-02 추가: 사용자 이름 툴팁 스타일 */
+.user-cell {
+  position: relative;
+  cursor: help;
+}
+
+.user-cell:hover::after {
+  content: attr(data-username);
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.user-cell:hover::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #1e293b;
+  z-index: 10;
+}
+
+/* ──────────────────────────────────────────────────────────────── */
+/* [정재훈] 2026-03-02 최종 개선: 눈에 잘 띄는 정렬 버튼 (어르신 친화적) */
+/* ──────────────────────────────────────────────────────────────── */
+.summary-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 40px !important; /* 아이콘 공간 넉넉히 */
+  font-weight: bold;
+  font-size: 16px; /* 글씨 크게 */
+  line-height: 1.5;
+  transition: all 0.2s ease;
+}
+
+.summary-table th.sortable:hover {
+  background-color: #1e40af !important; /* 진한 파랑 hover */
+  color: white !important;
+}
+
+.summary-table .sort-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 22px; /* 아이콘 크게 */
+  font-weight: bold;
+  color: #60a5fa; /* 기본 상태 선명 파랑 */
+  transition: all 0.2s ease;
+}
+
+.summary-table th.sortable:hover .sort-icon {
+  color: white;
+}
+
+.summary-table th.sortable .sort-icon.asc,
+.summary-table th.sortable .sort-icon.desc {
+  color: #ffffff; /* 정렬 중 흰색 */
+  font-size: 24px; /* 정렬 상태 더 크게 */
+}
+
+/* 정렬 안 된 상태 - 약간 투명한 양방향 화살표 */
+.summary-table th.sortable .sort-icon.none {
+  color: #93c5fd;
+  opacity: 0.7;
+  font-size: 18px;
+}

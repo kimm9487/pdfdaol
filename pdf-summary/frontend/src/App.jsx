@@ -7,6 +7,7 @@ import Register from './pages/Register';
 import PdfSummary from "./pages/PdfSummary.jsx";
 import MyPage from './pages/MyPage.jsx';
 import AdminDashboard from './pages/AdminDashboard';
+import UserList from './pages/UserList';  // 정재훈 추가 (2026-02-27): 전체 요약/사용자 목록 조회 페이지 (관리자 전용)
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
@@ -62,6 +63,15 @@ function App() {
         />
 
         {/* 보호된 라우트 */}
+        {/* 정재훈 추가 (2026-02-27) 
+            - 경로: /userlist
+            - 용도: 전체 요약 이력 조회 + 사용자 정보 포함 목록 (슬라이드 기준 UI 구현 예정)
+            - 접근: 로그인 + 관리자 권한 사용자만 가능 (ProtectedRoute 적용)
+            - 참고: 추후 role 기반 추가 제한 가능 */}
+        <Route 
+          path="/userlist" 
+          element={<ProtectedRoute component={UserList} />} 
+        />
         <Route 
           path="/" 
           element={<ProtectedRoute component={PdfSummary} />} 
