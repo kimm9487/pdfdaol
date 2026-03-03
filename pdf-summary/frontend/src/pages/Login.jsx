@@ -8,12 +8,12 @@ const Login = ({ setIsLoggedIn }) => {
   const [error, setError] = useState("");
 
   // 모달 및 인증 상태
-  const [showModal, setShowModal] = useState(null); // 'id' | 'pw' | null
+  const [showModal, setShowModal] = useState(null);
   const [email, setEmail] = useState("");
   const [findPwUserId, setFindPwUserId] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [isCodeSent, setIsCodeSent] = useState(false);
-  const [isVerified, setIsVerified] = useState(false); // 인증 성공 여부 (비번 재설정 창 전환용)
+  const [isVerified, setIsVerified] = useState(false);
 
   // 찾기 결과 및 새 비번 상태
   const [foundUsername, setFoundUsername] = useState("");
@@ -22,7 +22,6 @@ const Login = ({ setIsLoggedIn }) => {
 
   const navigate = useNavigate();
 
-  // 모든 상태 초기화
   const resetModalState = () => {
     setShowModal(null);
     setEmail("");
@@ -97,14 +96,13 @@ const Login = ({ setIsLoggedIn }) => {
     }
   };
 
-  // 2. 인증번호 확인 (아이디 찾기 결과 출력 혹은 비번 입력창 전환)
+  // 2. 인증번호 확인
   const handleVerifyCode = async () => {
     const formData = new FormData();
     formData.append("email", email);
     formData.append("code", verificationCode);
 
     try {
-      // 인증번호 검증 API 호출
       const response = await fetch("http://localhost:8000/auth/verify-code", {
         method: "POST",
         body: formData,
@@ -112,7 +110,6 @@ const Login = ({ setIsLoggedIn }) => {
 
       if (response.ok) {
         if (showModal === "id") {
-          // 아이디 찾기 모드: 최종 아이디 가져오기
           const idRes = await fetch(
             "http://localhost:8000/auth/verify-find-id",
             { method: "POST", body: formData },
@@ -120,7 +117,6 @@ const Login = ({ setIsLoggedIn }) => {
           const data = await idRes.json();
           setFoundUsername(data.username);
         } else {
-          // 비밀번호 찾기 모드: 다음 단계 UI로 전환
           setIsVerified(true);
         }
       } else {
@@ -132,7 +128,15 @@ const Login = ({ setIsLoggedIn }) => {
     }
   };
 
-  // 3. 비밀번호 최종 재설정
+  // 3. 아이디 찾기 성공 후 바로 비밀번호 재설정으로 전환하는 함수
+  const handleGoToResetPw = () => {
+    setFindPwUserId(foundUsername); // 찾은 아이디를 재설정 필드에 자동 입력
+    setFoundUsername(""); // 아이디 찾기 결과창 닫기
+    setShowModal("pw"); // 모달 모드를 비밀번호 재설정으로 변경
+    setIsVerified(true); // 이미 이메일 인증이 완료되었으므로 바로 비번 입력창 노출
+  };
+
+  // 4. 비밀번호 최종 재설정
   const handleResetPassword = async () => {
     if (newPassword !== confirmPassword)
       return alert("비밀번호가 일치하지 않습니다.");
@@ -217,14 +221,21 @@ const Login = ({ setIsLoggedIn }) => {
             <h3>{showModal === "id" ? "아이디 찾기" : "비밀번호 재설정"}</h3>
 
             {showModal === "id" && foundUsername ? (
+              /* 아이디 찾기 성공 화면 */
               <div className="result-box">
                 <p>
                   아이디: <strong>{foundUsername}</strong>
                 </p>
                 <button onClick={resetModalState}>로그인하러 가기</button>
+                <button
+                  onClick={handleGoToResetPw}
+                  style={{ backgroundColor: "#4a90e2", marginTop: "10px" }}
+                >
+                  비밀번호 재설정
+                </button>
               </div>
             ) : isVerified ? (
-              /* 2단계: 새 비밀번호 입력창 (비밀번호 찾기 모드 전용) */
+              /* 2단계: 새 비밀번호 입력창 */
               <div className="step-2">
                 <p
                   style={{

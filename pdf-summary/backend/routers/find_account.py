@@ -79,7 +79,8 @@ async def verify_find_id(email: str = Form(...), code: str = Form(...), db: Sess
         raise HTTPException(status_code=400, detail="번호가 틀렸습니다.")
     
     user = db.query(User).filter(User.email == email).first()
-    return {"username": user.username}
+    # 이메일 정보를 함께 넘겨주면 프론트에서 비번 재설정 시 편리합니다.
+    return {"username": user.username, "email": user.email}
 
 # [2. 인증번호 확인만 진행] - 비밀번호 재설정 전 단계
 @router.post("/verify-code")
