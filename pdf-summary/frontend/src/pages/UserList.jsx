@@ -283,7 +283,7 @@ const UserList = () => {
     <div className="summary-list-page">
       <div className="title-wrapper">
         <div className="title-bar"></div>
-        <h2>04. 요약 목록 보기</h2>
+        <h2>요약 목록 보기</h2>
       </div>
 
       <div className="description-wrapper">
