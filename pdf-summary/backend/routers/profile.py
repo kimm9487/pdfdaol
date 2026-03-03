@@ -43,3 +43,19 @@ def update_user_profile(
         "message": "프로필이 성공적으로 수정되었습니다.",
         "username": user.username, "full_name": user.full_name, "email": user.email
     }
+# profile.py에 추가
+@router.delete("/withdraw/{username}")
+def withdraw_user(username: str, db: Session = Depends(get_db)):
+    # 1. 사용자 조회
+    user = db.query(User).filter(User.username == username).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    
+    # 2. 실제 삭제 대신 비활성화(Soft Delete)를 권장하지만, 
+    # 완전히 삭제하고 싶다면 아래 코드를 사용합니다.
+    db.delete(user)
+    db.commit()
+    
+    return {"message": f"사용자 {username}님이 탈퇴 처리되었습니다."}
+

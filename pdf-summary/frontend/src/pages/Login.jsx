@@ -50,11 +50,18 @@ const Login = ({ setIsLoggedIn }) => {
 
       if (response.ok) {
         const data = await response.json();
-        localStorage.setItem("userName", data.user_name);
-        localStorage.setItem("userId", data.user_id);
+
+        // 1. 서버에서 내려주는 고유 번호(PK)를 반드시 저장해야 합니다.
+        // 보통 DB의 id값은 data.id 또는 data.user_db_id 등으로 들어옵니다.
+        localStorage.setItem("userDbId", data.id);
+
+        localStorage.setItem("userName", data.full_name || data.user_name);
+        localStorage.setItem("userId", data.username || data.user_id);
+        localStorage.setItem("userRole", data.role); // 관리자 여부 확인용
         localStorage.setItem("isLoggedIn", "true");
+
         if (setIsLoggedIn) setIsLoggedIn(true);
-        alert(`${data.user_name}님 환영합니다!`);
+        alert(`${data.full_name || data.user_name}님 환영합니다!`);
         navigate("/");
       } else {
         const errorData = await response.json();

@@ -217,7 +217,8 @@ async def get_user_documents(
     """
     사용자별 문서 목록 조회
     """
-    documents = get_user_documents(db, user_id)
+    documents = db.query(PdfDocument).filter(PdfDocument.user_id==user_id).all()
+    #documents = get_user_documents(db, user_id)
    
     return {
         "documents": [

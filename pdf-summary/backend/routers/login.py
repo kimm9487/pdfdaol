@@ -12,8 +12,10 @@ def login(user_id: str = Form(...), user_pw: str = Form(...), db: Session = Depe
         raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 틀렸습니다.")
     
     return {
-        "message": "로그인 성공",
-        "user_name": user.full_name,
-        "user_id": user.username,
-        "user_db_id": user.id
+        "id": user.id,  # 이 값이 프론트의 userDbId가 됩니다
+        "username": user.username,
+        "full_name": user.full_name,
+        "role": user.role,
+        "access_token": "...",
+        "token_type": "bearer"
     }
