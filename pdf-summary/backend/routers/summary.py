@@ -246,7 +246,7 @@ async def translate_text(
 @router.get("/document/{document_id}")
 async def get_document(
     document_id: int,
-    user_id: int = Form(...),  # 사용자 ID 추가
+    user_id: int,  # Query parameter로 변경
     db: Session = Depends(get_db),
 ):
     """
@@ -556,3 +556,108 @@ async def get_current_username(
         status_code=404,
         detail="사용자를 찾을 수 없습니다."
     )
+
+
+# ────────────────────────────────────────────────────────────────
+# DELETE 엔드포인트: 문서 삭제 (일반 사용자는 본인 문서만, 관리자는 전체)
+# ────────────────────────────────────────────────────────────────
+@router.delete("/summarize/{document_id}")
+async def delete_document(
+    document_id: int,
+    user_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    """
+    문서 삭제 엔드포인트 (사용자용)
+    - 관리자: 모든 문서 삭제 가능
+    - 일반 사용자: 본인 문서만 삭제 가능
+    """
+    # 권한 확인
+    if not can_user_access_document(db, user_id, document_id):
+        raise HTTPException(status_code=403, detail="이 문서를 삭제할 권한이 없습니다.")
+    
+    # 문서 조회
+    document = db.query(PdfDocument).filter(PdfDocument.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
+    
+    # 문서 삭제
+    db.delete(document)
+    db.commit()
+    
+    # 관리자 활동 로그 기록
+    user = db.query(User).filter(User.id == user_id).first()
+    log_admin_activity(
+        db=db,
+        admin_user_id=user_id,
+        action="DOCUMENT_DELETED",
+        target_type="DOCUMENT",
+        target_id=document_id,
+        details=json.dumps({
+            "filename": document.filename,
+            "original_user_id": document.user_id,
+            "deleted_by_admin": user.role == 'admin' if user else False
+        })
+    )
+    
+    return {"message": "문서가 삭제되었습니다.", "document_id": document_id}
+
+
+# ────────────────────────────────────────────────────────────────
+# PUT 엔드포인트: 문서 수정 (일반 사용자는 본인 문서만, 관리자는 전체)
+# ────────────────────────────────────────────────────────────────
+@router.put("/summarize/{document_id}")
+async def update_document(
+    document_id: int,
+    user_id: int = Form(...),
+    extracted_text: str = Form(None),
+    summary: str = Form(None),
+    db: Session = Depends(get_db),
+):
+    """
+    문서 수정 엔드포인트 (사용자용)
+    - 관리자: 모든 문서 수정 가능
+    - 일반 사용자: 본인 문서만 수정 가능
+    """
+    # 권한 확인
+    if not can_user_access_document(db, user_id, document_id):
+        raise HTTPException(status_code=403, detail="이 문서를 수정할 권한이 없습니다.")
+    
+    # 문서 조회
+    document = db.query(PdfDocument).filter(PdfDocument.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
+    
+    # 필드 업데이트
+    if extracted_text is not None:
+        document.extracted_text = extracted_text
+        document.char_count = len(extracted_text)
+    
+    if summary is not None:
+        document.summary = summary
+    
+    document.updated_at = datetime.datetime.now()
+    db.commit()
+    db.refresh(document)
+    
+    # 관리자 활동 로그 기록
+    user = db.query(User).filter(User.id == user_id).first()
+    log_admin_activity(
+        db=db,
+        admin_user_id=user_id,
+        action="DOCUMENT_UPDATED",
+        target_type="DOCUMENT",
+        target_id=document_id,
+        details=json.dumps({
+            "filename": document.filename,
+            "updated_fields": ["extracted_text" if extracted_text else "", "summary" if summary else ""],
+            "updated_by_admin": user.role == 'admin' if user else False
+        })
+    )
+    
+    return {
+        "message": "문서가 수정되었습니다.",
+        "document_id": document_id,
+        "updated_at": document.updated_at.isoformat(),
+        "char_count": document.char_count
+    }
