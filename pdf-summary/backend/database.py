@@ -210,3 +210,4 @@ def log_admin_activity(db, admin_user_id: int, action: str, target_type: str = N
     except Exception as e:
         db.rollback()
         print(f"⚠️ 로그 기록 실패: {str(e)}")
+

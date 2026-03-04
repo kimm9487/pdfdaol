@@ -311,6 +311,9 @@ async def list_user_documents(
                 "extracted_text": doc.extracted_text,
                 "original_translation": doc.original_translation,
                 "summary_translation": doc.summary_translation,
+                # ===== [추가] 공개/비공개 및 중요 문서 필드 =====
+                "is_public": bool(doc.is_public),
+                "is_important": bool(doc.is_important),
             } for doc in documents[:limit]
         ],
         "total_count": len(documents),

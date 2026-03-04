@@ -12,7 +12,7 @@ from routers.admin import router as admin_router
 from routers.history import router as history_router
 from routers.summary import router as summary_router
 from routers.find_account import router as find_account_router
-from routers.find_account import router as find_account_router
+from routers.is_public import router as is_public_router
 
 # --- 1. DB 모델 정의 ---
 # User 모델은 database.py에서 가져옴
@@ -48,10 +48,13 @@ app.include_router(find_account_router)
 # 3. 문서 요약 관련
 app.include_router(summary_router, prefix="/api", tags=["summary"])
 
-# 4. 마이페이지 히스토리
+# 4. 문서 공개/비공개 및 수정 관련
+app.include_router(is_public_router, prefix="/api", tags=["document"])
+
+# 5. 마이페이지 히스토리
 app.include_router(history_router)
 
-# 5. 관리자 전용 기능
+# 6. 관리자 전용 기능
 app.include_router(admin_router)
 
 
