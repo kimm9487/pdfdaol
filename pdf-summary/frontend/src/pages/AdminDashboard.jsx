@@ -4,8 +4,7 @@ import { useSessionValidator } from '../hooks/useSessionValidator';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
-    // ===== [추가] 세션 유효성 검증 (10분 주기, 강제 로그아웃 대상은 즉시+5초) =====
-    useSessionValidator(); // 기본값 10분, 강제 로그아웃 대상이면 즉시+5초 주기로 검증
+    // ===== [추가] 세션 유효성 검증 (useSessionValidator가 이미 처리함, 여기선 제거) =====
 
     const navigate = useNavigate();
     const API_BASE = 'http://localhost:8000/api';
@@ -13,14 +12,18 @@ const AdminDashboard = () => {
     const adminId = userDbIdStr ? parseInt(userDbIdStr) : null; // 관리자 ID
     
     console.log('AdminDashboard Init - userDbIdStr:', userDbIdStr, '파싱된 adminId:', adminId);
-    
-    // adminId가 없거나 NaN이면 로그인 페이지로 이동
+
+    // ===== [추가] 로그인 정보 확인 =====
     useEffect(() => {
-        if (!adminId || isNaN(adminId)) {
-            console.error('관리자 ID가 없습니다. 로그인이 필요합니다.');
-            navigate('/login');
-        }
-    }, [adminId, navigate]);
+      const userDbId = localStorage.getItem('userDbId');
+      const sessionToken = localStorage.getItem('session_token');
+      
+      if (!userDbId || !sessionToken) {
+        console.log('로그인 정보 없음, 로그인 페이지로 이동');
+        navigate('/login');
+        return;
+      }
+    }, []); // 마운트할 때 한 번만 실행
     
     const [dbStatus, setDbStatus] = useState(null);
     const [documents, setDocuments] = useState([]);

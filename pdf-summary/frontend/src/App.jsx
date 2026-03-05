@@ -24,8 +24,19 @@ function App() {
       setIsLoggedIn(logged);
     };
 
+    const handleAuthStateChange = () => {
+      const logged = localStorage.getItem("isLoggedIn") === "true";
+      console.log("🔐 authStateChanged 이벤트 감지 - isLoggedIn:", logged);
+      setIsLoggedIn(logged);
+    };
+
     window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    window.addEventListener("authStateChanged", handleAuthStateChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("authStateChanged", handleAuthStateChange);
+    };
   }, []);
 
   console.log("📊 현재 render - isLoggedIn:", isLoggedIn);

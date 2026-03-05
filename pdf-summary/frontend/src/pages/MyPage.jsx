@@ -1,10 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { useSessionValidator } from "../hooks/useSessionValidator";
+import { useLogout } from "../hooks/useLogout";
 import "./MyPage.css";
 
 const MyPage = () => {
   // ===== [추가] 세션 유효성 검증 (10분 주기, 강제 로그아웃 대상은 즉시+5초) =====
   useSessionValidator(); // 기본값 10분, 강제 로그아웃 대상이면 즉시+5초 주기로 검증
+
+  // ===== [추가] 로그인 정보 확인 =====
+  const handleLogout = useLogout(null, { showAlert: false });
+
+  useEffect(() => {
+    const userDbId = localStorage.getItem("userDbId");
+    const sessionToken = localStorage.getItem("session_token");
+
+    if (!userDbId || !sessionToken) {
+      console.log("로그인 정보 없음, 로그아웃 처리");
+      handleLogout();
+    }
+  }, []); // 마운트할 때 한 번만 실행
 
   // ===== [추가] 상태 관리 =====
   // 사용자 프로필 정보
