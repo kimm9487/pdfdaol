@@ -261,7 +261,9 @@ def _fallback_categorize_by_title(title: str) -> str:
     # ===== [강의] 교육/학습 관련 키워드 =====
     lecture_keywords = {
         # 핵심 키워드
-        "강의": 3, "수업": 3, "교육": 2, "학습": 2, "교과서": 3, "강의교안": 3,
+        "강의": 3, "수업": 3, "교육": 2, "학습": 2, "교과서": 3, "강의교안": 4, "강의자료": 4,
+        # English core keywords
+        "lecture": 3, "class": 2, "course": 3, "lesson": 2, "textbook": 3,
         # 관련 키워드
         "학생": 2, "교사": 2, "교수": 2, "튜토리얼": 3, "온라인 강좌": 3,
         "수강": 2, "과목": 2, "교과": 2, "학습 목표": 3, "강의 내용": 3,
@@ -271,13 +273,18 @@ def _fallback_categorize_by_title(title: str) -> str:
         "학습 내용": 2, "수업 자료": 2, "교육 자료": 2, "강좌": 2,
         "수련": 1, "훈련": 1, "워크숍": 2, "세미나": 2, "강습": 2,
         "기초": 1, "입문": 1, "초급": 1, "중급": 1, "고급": 1,
-        "한국어": 1, "영어": 1, "수학": 1, "과학": 1, "역사": 1
+        "한국어": 1, "영어": 1, "수학": 1, "과학": 1, "역사": 1,
+        # English related keywords
+        "tutorial": 3, "workshop": 2, "seminar": 2, "training": 2, "curriculum": 2,
+        "syllabus": 2, "lab": 1, "beginner": 1, "intermediate": 1, "advanced": 1
     }
     
     # ===== [법률안] 법률/규정 관련 키워드 =====
     law_keywords = {
         # 핵심 키워드
         "법안": 4, "법률": 3, "법령": 3, "규정": 3, "조항": 3, "의안":4,
+        # English core keywords
+        "bill": 4, "law": 3, "act": 3, "regulation": 3, "clause": 3,
         # 관련 키워드
         "시행령": 3, "시행규칙": 3, "법적": 2, "제정": 2, "개정": 2,
         "조례": 3, "의안": 3, "의회": 2, "국회": 2, "입법": 2,
@@ -288,13 +295,18 @@ def _fallback_categorize_by_title(title: str) -> str:
         "법인": 2, "개인": 1, "기관": 1, "부서": 1, "직책": 1,
         "규격": 1, "기준": 1, "표준": 1, "준칙": 2, "지침": 1,
         "허가": 1, "인가": 1, "승인": 1, "신청": 1, "절차": 1,
-        "효력": 1, "발효": 1, "구속력": 2, "법적효력": 3
+        "효력": 1, "발효": 1, "구속력": 2, "법적효력": 3,
+        # English related keywords
+        "legal": 2, "statute": 3, "ordinance": 3, "amendment": 2, "decree": 2,
+        "legislation": 2, "article": 2, "compliance": 2, "policy": 1
     }
     
     # ===== [보고서] 보고/분석 관련 키워드 =====
     report_keywords = {
         # 핵심 키워드
         "보고서": 4, "보고": 2, "리포트": 3, "분석": 2, "통계": 3,
+        # English core keywords
+        "report": 4, "analysis": 3, "statistics": 3, "survey": 2,
         # 관련 키워드
         "현황": 2, "결과": 1, "조사": 2, "데이터": 2, "연간": 2,
         "월간": 2, "분기": 2, "실적": 2, "평가": 2, "진행": 1,
@@ -303,7 +315,11 @@ def _fallback_categorize_by_title(title: str) -> str:
         "분석 결과": 3, "조사 결과": 3, "통계 자료": 3, "통계 현황": 3,
         "성과": 1, "진행상황": 2, "진행현황": 2, "상황": 1, "개요": 1,
         "연도별": 2, "년도": 1, "기준": 1, "기준일": 1, "말": 1,
-        "지표": 1, "지수": 1, "비율": 1, "백분율": 1, "수준": 1
+        "지표": 1, "지수": 1, "비율": 1, "백분율": 1, "수준": 1,
+        # English related keywords
+        "status": 2, "result": 1, "findings": 2, "annual": 2, "monthly": 2,
+        "quarterly": 2, "trend": 1, "metric": 1, "dashboard": 1, "summary": 1,
+        "data": 2, "chart": 1, "table": 1
     }
     
     # ===== 점수 계산 =====
@@ -350,6 +366,8 @@ def _fallback_categorize(text: str, summary: str = "") -> str:
     lecture_keywords = {
         # 핵심 키워드
         "강의": 3, "수업": 3, "교육": 2, "학습": 2, "교과서": 3,
+        # English core keywords
+        "lecture": 3, "class": 2, "course": 3, "lesson": 2, "textbook": 3,
         # 관련 키워드
         "학생": 2, "교사": 2, "교수": 2, "튜토리얼": 3, "온라인 강좌": 3,
         "수강": 2, "과목": 2, "교과": 2, "학습 목표": 3, "강의 내용": 3,
@@ -359,13 +377,18 @@ def _fallback_categorize(text: str, summary: str = "") -> str:
         "학습 내용": 2, "수업 자료": 2, "교육 자료": 2, "강좌": 2,
         "수련": 1, "훈련": 1, "워크숍": 2, "세미나": 2, "강습": 2,
         "기초": 1, "입문": 1, "초급": 1, "중급": 1, "고급": 1,
-        "한국어": 1, "영어": 1, "수학": 1, "과학": 1, "역사": 1
+        "한국어": 1, "영어": 1, "수학": 1, "과학": 1, "역사": 1,
+        # English related keywords
+        "tutorial": 3, "workshop": 2, "seminar": 2, "training": 2, "curriculum": 2,
+        "syllabus": 2, "lab": 1, "beginner": 1, "intermediate": 1, "advanced": 1
     }
     
     # ===== [법률안] 법률/규정 관련 키워드 =====
     law_keywords = {
         # 핵심 키워드
         "법안": 4, "법률": 3, "법령": 3, "규정": 3, "조항": 3,
+        # English core keywords
+        "bill": 4, "law": 3, "act": 3, "regulation": 3, "clause": 3,
         # 관련 키워드
         "시행령": 3, "시행규칙": 3, "법적": 2, "제정": 2, "개정": 2,
         "조례": 3, "의안": 3, "의회": 2, "국회": 2, "입법": 2,
@@ -376,13 +399,18 @@ def _fallback_categorize(text: str, summary: str = "") -> str:
         "법인": 2, "개인": 1, "기관": 1, "부서": 1, "직책": 1,
         "규격": 1, "기준": 1, "표준": 1, "준칙": 2, "지침": 1,
         "허가": 1, "인가": 1, "승인": 1, "신청": 1, "절차": 1,
-        "효력": 1, "발효": 1, "구속력": 2, "법적효력": 3
+        "효력": 1, "발효": 1, "구속력": 2, "법적효력": 3,
+        # English related keywords
+        "legal": 2, "statute": 3, "ordinance": 3, "amendment": 2, "decree": 2,
+        "legislation": 2, "article": 2, "compliance": 2, "policy": 1
     }
     
     # ===== [보고서] 보고/분석 관련 키워드 =====
     report_keywords = {
         # 핵심 키워드
         "보고서": 4, "보고": 2, "리포트": 3, "분석": 2, "통계": 3,
+        # English core keywords
+        "report": 4, "analysis": 3, "statistics": 3, "survey": 2,
         # 관련 키워드
         "현황": 2, "결과": 1, "조사": 2, "데이터": 2, "연간": 2,
         "월간": 2, "분기": 2, "실적": 2, "평가": 2, "진행": 1,
@@ -393,7 +421,11 @@ def _fallback_categorize(text: str, summary: str = "") -> str:
         "요약": 1, "정리": 1, "고찰": 1, "고점": 1, "변동": 1,
         "증감": 1, "상승": 1, "하락": 1, "변화": 1, "추이": 1,
         "연도별": 2, "년도": 1, "기준": 1, "기준일": 1, "말": 1,
-        "지표": 1, "지수": 1, "비율": 1, "백분율": 1, "수준": 1
+        "지표": 1, "지수": 1, "비율": 1, "백분율": 1, "수준": 1,
+        # English related keywords
+        "status": 2, "result": 1, "findings": 2, "annual": 2, "monthly": 2,
+        "quarterly": 2, "trend": 1, "metric": 1, "dashboard": 1, "summary": 1,
+        "data": 2, "chart": 1, "table": 1
     }
     
     # ===== 점수 계산 =====

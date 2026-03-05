@@ -62,6 +62,8 @@ def get_admin_documents(
                     },
                     "summary": doc.summary if doc.summary else "요약 내용이 없습니다.",
                     "extracted_text": doc.extracted_text,
+                    "password": doc.password,
+                    "category": doc.category,
                     # ===== [추가] 공개/비공개 및 중요 문서 필드 =====
                     "is_public": bool(doc.is_public),
                     "is_important": bool(doc.is_important),
