@@ -1,50 +1,24 @@
 services:
-  db:
-    image: mariadb:11.4
-    container_name: pdf_db
-    restart: unless-stopped
-    environment:
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-9487}
-      MARIADB_DATABASE: ${MARIADB_DATABASE:-pdf_summary}
-      MARIADB_USER: ${MARIADB_USER:-pdf_user}
-      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-pdf_user_pw}
-    ports:
-      - "3307:3306"
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-    healthcheck:
-      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -uroot -p$$MARIADB_ROOT_PASSWORD"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    volumes:
-      - mariadb_data:/var/lib/mysql
-      - ./backend/database_migration.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+  # 1. 기존 'db:' 섹션을 통째로 삭제했습니다. 
+  # 로컬에 DB를 띄우지 않고 192.168.0.151 주소를 직접 사용하기 때문입니다.
 
   backend:
     build: ./backend
     container_name: pdf_backend
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
+    # 2. 로컬 DB 컨테이너를 기다리던 depends_on 설정도 삭제했습니다.
     environment:
-      DB_HOST: db
-      DB_PORT: 3306
-      DB_USER: ${MARIADB_USER:-pdf_user}
-      DB_PASSWORD: ${MARIADB_PASSWORD:-pdf_user_pw}
-      DB_NAME: ${MARIADB_DATABASE:-pdf_summary}
+      DB_HOST: 192.168.0.151
+      # 3. 중요!! 포트 번호 확인: 
+      # 외부 DB 서버 자체가 3307 포트로 열려있는 게 확실하다면 3307이 맞지만,
+      # 일반적인 MariaDB/MySQL의 기본 내부 포트는 3306입니다. 
+      # 만약 연결이 안 된다면 3306으로 바꿔보세요.
+      DB_PORT: 3307 
+      DB_USER: appuser1
+      DB_PASSWORD: "1111"  # 숫자로만 된 비밀번호는 따옴표로 감싸는 게 안전합니다.
+      DB_NAME: pdf_summary
     ports:
       - "8000:8000"
-    environment:
-
-      - DB_HOST=192.168.0.151
-      - DB_PORT=3306
-      - DB_USER=appuser1
-      - DB_PASSWORD=1111
-      - DB_NAME=pdf_summary
     volumes:
       - ./backend:/app
 
@@ -60,7 +34,8 @@ services:
       - "5173:5173"
     volumes:
       - ./frontend:/app
-      - /app/node_modules    # 로컬과 도커의 노드 모듈 충돌 방지
+      - /app/node_modules
 
-
-
+# 4. 로컬 DB를 안 쓰므로 아래 볼륨 설정도 지워도 무방합니다.
+# volumes:
+#   mariadb_data:

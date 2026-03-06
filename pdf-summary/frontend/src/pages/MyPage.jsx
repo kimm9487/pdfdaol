@@ -1,15 +1,8 @@
-<<<<<<< HEAD
-import React, { useState, useEffect } from "react";
-import { useSessionValidator } from "../hooks/useSessionValidator";
-import { useLogout } from "../hooks/useLogout";
-import "./MyPage.css";
-=======
 import React, { useState, useEffect } from 'react';
 import { useSessionValidator } from '../hooks/useSessionValidator';
 import { useLogout } from '../hooks/useLogout';
 import { buildApiUrl } from '../config/api';
 import './Mypage.css';
->>>>>>> d4b3e0e02102c72f9252fba01d50e8edf1cbee3c
 
 const MyPage = () => {
   // ===== [추가] 세션 유효성 검증 (10분 주기, 강제 로그아웃 대상은 즉시+5초) =====
@@ -91,22 +84,10 @@ const MyPage = () => {
         }
 
         // 프로필 정보 조회
-<<<<<<< HEAD
-        console.log(
-          `📡 프로필 조회: http://localhost:8000/auth/profile/${userDbId}`,
-        );
-        const profileResponse = await fetch(
-          `http://localhost:8000/auth/profile/${userDbId}`,
-          {
-            cache: "no-store",
-            credentials: "include",
-          },
-=======
         console.log(`📡 프로필 조회: ${buildApiUrl(`/auth/profile/${userDbId}`)}`);
         const profileResponse = await fetch(
           buildApiUrl(`/auth/profile/${userDbId}`),
           { cache: 'no-store' }
->>>>>>> d4b3e0e02102c72f9252fba01d50e8edf1cbee3c
         );
 
         console.log("📊 프로필 응답:", profileResponse.status);
@@ -134,12 +115,7 @@ const MyPage = () => {
 
         console.log(`📡 히스토리 조회: ${historyUrl}`);
         const historyResponse = await fetch(historyUrl, {
-<<<<<<< HEAD
-          cache: "no-store",
-          credentials: "include",
-=======
           cache: 'no-store'
->>>>>>> d4b3e0e02102c72f9252fba01d50e8edf1cbee3c
         });
 
         console.log("📊 히스토리 응답:", historyResponse.status);
@@ -284,13 +260,8 @@ const MyPage = () => {
 
       // ===== [추가] DB에서 최신 전체 데이터 조회 =====
       const response = await fetch(
-<<<<<<< HEAD
-        `http://localhost:8000/api/document/${docId}?user_id=${userDbId}`,
-        { method: "GET" },
-=======
         buildApiUrl(`/api/document/${docId}?user_id=${userDbId}`),
         { method: "GET" }
->>>>>>> d4b3e0e02102c72f9252fba01d50e8edf1cbee3c
       );
 
       if (response.ok) {
@@ -451,18 +422,9 @@ const MyPage = () => {
     ) {
       try {
         const userId = localStorage.getItem("userId");
-<<<<<<< HEAD
-        const response = await fetch(
-          `http://localhost:8000/auth/withdraw/${userId}`,
-          {
-            method: "DELETE",
-          },
-        );
-=======
         const response = await fetch(buildApiUrl(`/auth/withdraw/${userId}`), {
           method: "DELETE",
         });
->>>>>>> d4b3e0e02102c72f9252fba01d50e8edf1cbee3c
 
         if (response.ok) {
           alert("회원 탈퇴가 완료되었습니다.");
