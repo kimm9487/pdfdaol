@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS pdf_documents (
   filename VARCHAR(255) NOT NULL,
   extracted_text LONGTEXT,
   summary LONGTEXT,
+  ocr_model VARCHAR(50) COMMENT '텍스트 추출에 사용된 OCR 모델',
   model_used VARCHAR(100),
   char_count INT DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -117,6 +118,7 @@ CREATE TABLE IF NOT EXISTS pdf_documents (
 -- ========================================
 -- 5-1. 기존 테이블에 컬럼 추가 (마이그레이션)
 -- ========================================
+ALTER TABLE pdf_documents ADD COLUMN IF NOT EXISTS ocr_model VARCHAR(50) COMMENT '텍스트 추출에 사용된 OCR 모델' AFTER summary;
 ALTER TABLE pdf_documents ADD COLUMN IF NOT EXISTS category ENUM('강의','법률안','보고서','기타') DEFAULT '기타' NOT NULL COMMENT '문서 카테고리' AFTER successful_pages;
 ALTER TABLE pdf_documents ADD INDEX IF NOT EXISTS ix_pdf_documents_category (category);
 

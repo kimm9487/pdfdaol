@@ -88,6 +88,7 @@ class PdfDocument(Base):
     filename = Column(String(255), nullable=False)
     extracted_text = Column(LONGTEXT)
     summary = Column(LONGTEXT)
+    ocr_model = Column(String(50), comment="텍스트 추출에 사용된 OCR 모델")
     model_used = Column(String(100))
     char_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.datetime.now, index=True)

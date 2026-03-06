@@ -3,7 +3,7 @@ import datetime
 from fastapi import APIRouter, Form, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
-from database import get_db, User, PdfDocument, log_admin_activity
+from database import get_db, User, PdfDocument, UserSession, AdminActivityLog, log_admin_activity
 
 router = APIRouter()
 
@@ -116,13 +116,41 @@ def delete_user(
         admin_user_id: 관리자 사용자 ID (로그 기록용)
     """
     try:
+        # 관리자 권한 확인
+        admin_user = db.query(User).filter(User.id == admin_user_id).first()
+        if not admin_user or admin_user.role != 'admin':
+            raise HTTPException(status_code=403, detail="관리자만 이용 가능합니다.")
+
         # 삭제할 사용자 확인
         user_to_delete = db.query(User).filter(User.id == user_id).first()
         if not user_to_delete:
             raise HTTPException(status_code=404, detail="삭제할 사용자를 찾을 수 없습니다.")
+
+        if user_to_delete.role == 'admin':
+            raise HTTPException(status_code=400, detail="관리자 계정은 삭제할 수 없습니다.")
+
+        if user_id == admin_user_id:
+            raise HTTPException(status_code=400, detail="현재 로그인한 관리자 본인은 삭제할 수 없습니다.")
         
         # 삭제 전 사용자 정보 저장 (로그용)
         deleted_username = user_to_delete.username
+
+        # 외래키 참조 정리 (users <- user_sessions/admin_activity_logs/pdf_documents)
+        deleted_sessions = (
+            db.query(UserSession)
+            .filter(UserSession.user_id == user_id)
+            .delete(synchronize_session=False)
+        )
+        deleted_logs = (
+            db.query(AdminActivityLog)
+            .filter(AdminActivityLog.admin_user_id == user_id)
+            .delete(synchronize_session=False)
+        )
+        deleted_docs = (
+            db.query(PdfDocument)
+            .filter(PdfDocument.user_id == user_id)
+            .delete(synchronize_session=False)
+        )
         
         # 사용자 삭제
         db.delete(user_to_delete)
@@ -135,13 +163,23 @@ def delete_user(
             action="USER_DELETED",
             target_type="USER",
             target_id=user_id,
-            details=json.dumps({"deleted_username": deleted_username}),
+            details=json.dumps({
+                "deleted_username": deleted_username,
+                "deleted_sessions": deleted_sessions,
+                "deleted_activity_logs": deleted_logs,
+                "deleted_documents": deleted_docs
+            }),
             ip_address=request.client.host
         )
         
         return {
             "message": f"사용자 '{deleted_username}'이(가) 삭제되었습니다.",
-            "deleted_user_id": user_id
+            "deleted_user_id": user_id,
+            "cleanup": {
+                "sessions": deleted_sessions,
+                "activity_logs": deleted_logs,
+                "documents": deleted_docs
+            }
         }
     except HTTPException:
         raise

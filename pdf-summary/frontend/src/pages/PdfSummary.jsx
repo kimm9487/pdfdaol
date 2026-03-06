@@ -28,9 +28,12 @@ const PdfSummary = () => {
 
     const [file, setFile] = useState(null);
     const [fileName, setFileName] = useState("파일 선택 - 선택된 파일 없음");
-    const [models, setModels] = useState(["gemma3:latest"]);
-    const [selectedModel, setSelectedModel] = useState("gemma3:latest");
+    const [models, setModels] = useState(["gemma3:lastest"]);
+    const [selectedModel, setSelectedModel] = useState("gemma3:lastest");
+    const [ocrModels, setOcrModels] = useState([{ id: "pypdf2", label: "기본 텍스트 추출 (텍스트 기반 PDF)" }]);
+    const [selectedOcrModel, setSelectedOcrModel] = useState("pypdf2");
     const [loading, setLoading] = useState(false);
+    const [summarizing, setSummarizing] = useState(false);
     const [status, setStatus] = useState({ type: '', msg: '' });
     const [result, setResult] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
@@ -47,6 +50,21 @@ const PdfSummary = () => {
     const [documentPassword, setDocumentPassword] = useState("");
     const [isPublic, setIsPublic] = useState(true);
 
+    const getFileExtension = (name) => {
+        const idx = name.lastIndexOf('.');
+        if (idx < 0) return '';
+        return name.slice(idx).toLowerCase();
+    };
+
+    const getAllowedExtensions = (ocrModel) => {
+        if ((ocrModel || '').toLowerCase() === 'pypdf2') {
+            return ['.pdf'];
+        }
+        return ['.pdf', '.doc', '.docx', '.hwp'];
+    };
+
+    const getAcceptByModel = (ocrModel) => getAllowedExtensions(ocrModel).join(',');
+
     // 사용자 권한 확인
     useEffect(() => {
         const userId = localStorage.getItem("userId");
@@ -62,7 +80,20 @@ const PdfSummary = () => {
                     const data = await res.json();
                     if (data.models && data.models.length > 0) {
                         setModels(data.models);
-                        setSelectedModel(data.models[0]);
+
+                        // Use a preferred default model instead of always taking the first installed model.
+                        const preferredOrder = ["gemma3:lastest", "gemma3:latest"];
+                        const preferred = preferredOrder.find((name) => data.models.includes(name));
+                        setSelectedModel(preferred || data.models[0]);
+                    }
+                }
+
+                const ocrRes = await fetch(`${API_BASE}/ocr-models`);
+                if (ocrRes.ok) {
+                    const ocrData = await ocrRes.json();
+                    if (ocrData.ocr_models && ocrData.ocr_models.length > 0) {
+                        setOcrModels(ocrData.ocr_models);
+                        setSelectedOcrModel(ocrData.ocr_models[0].id);
                     }
                 }
             } catch (err) {
@@ -81,9 +112,15 @@ const PdfSummary = () => {
 
     // [추가] 파일 처리 공통 함수
     const processFile = (selectedFile) => {
-        // PDF 파일만 허용
-        if (!selectedFile.type.includes('pdf')) {
-            setStatus({ type: 'error', msg: 'PDF 파일만 선택해주세요.' });
+        const extension = getFileExtension(selectedFile.name || '');
+        const allowed = getAllowedExtensions(selectedOcrModel);
+
+        if (!allowed.includes(extension)) {
+            const modelName = (selectedOcrModel || '').toLowerCase() === 'pypdf2' ? 'pypdf2' : selectedOcrModel;
+            setStatus({
+                type: 'error',
+                msg: `${modelName} 모델은 ${allowed.join(', ')} 파일만 지원합니다.`
+            });
             return;
         }
 
@@ -96,6 +133,22 @@ const PdfSummary = () => {
         setDocumentPassword("");
         setIsPublic(true);
     };
+
+    useEffect(() => {
+        if (!file) return;
+
+        const extension = getFileExtension(file.name || '');
+        const allowed = getAllowedExtensions(selectedOcrModel);
+        if (!allowed.includes(extension)) {
+            setFile(null);
+            setFileName('파일 선택 - 선택된 파일 없음');
+            setResult(null);
+            setStatus({
+                type: 'info',
+                msg: `선택한 OCR 모델이 변경되어 파일이 초기화되었습니다. 허용 형식: ${allowed.join(', ')}`
+            });
+        }
+    }, [selectedOcrModel]);
 
     // [추가] 드래그 오버 이벤트
     const handleDragOver = (e) => {
@@ -124,11 +177,11 @@ const PdfSummary = () => {
         }
     };
 
-    const handleSummarize = async () => {
+    const handleExtract = async () => {
         if (!file) return;
 
         setLoading(true);
-        setStatus({ type: 'info', msg: 'AI가 문서를 분석 중입니다. 잠시 기다려주세요...' });
+        setStatus({ type: 'info', msg: '선택한 OCR 모델로 문서를 추출 중입니다. 잠시 기다려주세요...' });
         setResult(null);
 
         try {
@@ -144,33 +197,70 @@ const PdfSummary = () => {
             const formData = new FormData();
             formData.append("file", file);
             formData.append("user_id", parseInt(userDbId));  // 정수로 변환
-            formData.append("model", selectedModel);
+            formData.append("ocr_model", selectedOcrModel);
             // [추가] 중요문서 관련 정보 추가
             formData.append("is_important", isImportant);
             formData.append("password", isImportant ? documentPassword : null);
             formData.append("is_public", isPublic);
 
-            console.log("Sending summarize request with user_id:", parseInt(userDbId), "model:", selectedModel, "is_important:", isImportant);
+            console.log("Sending extract request with user_id:", parseInt(userDbId), "ocr_model:", selectedOcrModel, "is_important:", isImportant);
 
-            const res = await fetch(`${API_BASE}/summarize`, { method: "POST", body: formData });
+            const res = await fetch(`${API_BASE}/extract`, { method: "POST", body: formData });
             const data = await res.json();
 
             console.log("Response status:", res.status, "Data:", data);
 
             if (!res.ok) {
-                const errorMsg = data.detail || data.message || JSON.stringify(data) || "요약 중 오류가 발생했습니다.";
+                const errorMsg = data.detail || data.message || JSON.stringify(data) || "추출 중 오류가 발생했습니다.";
                 console.error("API Error:", errorMsg);
                 setStatus({ type: 'error', msg: errorMsg });
                 return;
             }
 
             setResult(data);
-            setStatus({ type: '', msg: '' });
+            setStatus({ type: 'success', msg: '텍스트 추출이 완료되었습니다. 이제 LLM 요약을 실행할 수 있습니다.' });
         } catch (err) {
             console.error("Fetch Error:", err);
             setStatus({ type: 'error', msg: "서버에 연결할 수 없습니다. 백엔드 API 주소를 확인해주세요. 에러: " + err.message });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSummarizeExtracted = async () => {
+        if (!result || !result.id) return;
+
+        setSummarizing(true);
+        setStatus({ type: 'info', msg: '추출된 문서를 LLM이 요약 중입니다. 잠시 기다려주세요...' });
+
+        try {
+            const userDbId = localStorage.getItem("userDbId");
+            const formData = new FormData();
+            formData.append("document_id", result.id);
+            formData.append("user_id", parseInt(userDbId));
+            formData.append("model", selectedModel);
+
+            const res = await fetch(`${API_BASE}/summarize-document`, { method: "POST", body: formData });
+            const data = await res.json();
+
+            if (!res.ok) {
+                const errorMsg = data.detail || data.message || JSON.stringify(data) || "요약 중 오류가 발생했습니다.";
+                setStatus({ type: 'error', msg: errorMsg });
+                return;
+            }
+
+            setResult(prev => ({
+                ...prev,
+                summary: data.summary,
+                model_used: data.model_used,
+                extracted_text: data.extracted_text,
+            }));
+            setStatus({ type: 'success', msg: 'LLM 요약이 완료되었습니다.' });
+        } catch (err) {
+            console.error("요약 오류:", err);
+            setStatus({ type: 'error', msg: "요약 중 오류가 발생했습니다. 에러: " + err.message });
+        } finally {
+            setSummarizing(false);
         }
     };
 
@@ -277,7 +367,7 @@ const PdfSummary = () => {
                      onDragLeave={handleDragLeave}
                      onDrop={handleDrop}>
                     <label className={`file-label ${file ? 'has-file' : ''}`}>
-                        <input type="file" onChange={handleFileChange} accept=".pdf" style={{ display: 'none' }} />
+                        <input type="file" onChange={handleFileChange} accept={getAcceptByModel(selectedOcrModel)} style={{ display: 'none' }} />
                         <svg className="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                             <polyline points="14 2 14 8 20 8" />
@@ -285,15 +375,22 @@ const PdfSummary = () => {
                         <span className={`file-name ${file ? 'selected' : ''}`}>{fileName}</span>
                     </label>
 
-                    <button className="btn-summarize" onClick={handleSummarize} disabled={!file || loading}>
-                        {!loading ? <span>요약하기</span> : <div className="spinner"></div>}
+                    <button className="btn-summarize" onClick={handleExtract} disabled={!file || loading}>
+                        {!loading ? <span>추출하기</span> : <div className="spinner"></div>}
                     </button>
                 </div>
 
                 <div className="model-row">
-                    <span className="model-label">AI 모델:</span>
+                    <span className="model-label">LLM 요약 모델:</span>
                     <select className="model-select" value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
                         {models.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                </div>
+
+                <div className="model-row">
+                    <span className="model-label">OCR 추출 모델:</span>
+                    <select className="model-select" value={selectedOcrModel} onChange={(e) => setSelectedOcrModel(e.target.value)}>
+                        {ocrModels.map(m => <option key={m.id} value={m.id}>{m.id} - {m.label}</option>)}
                     </select>
                 </div>
 
@@ -376,26 +473,47 @@ const PdfSummary = () => {
                         <hr className="divider" />
                         <div className="section-header">
                             <span className="section-title">🤖 AI 요약 결과</span>
-                            <span className="section-meta">{result.model_used}</span>
+                            <span className="section-meta">{result.model_used || '아직 요약 전'}</span>
                         </div>
-                        <div className="summary-box">{result.summary}</div>
+                        {!result.summary && (
+                            <div className="translation-section">
+                                <button
+                                    className="btn-translate"
+                                    onClick={handleSummarizeExtracted}
+                                    disabled={summarizing}
+                                >
+                                    {summarizing ? (
+                                        <>
+                                            <div className="spinner-small"></div>
+                                            요약 중...
+                                        </>
+                                    ) : (
+                                        <>🧠 추출 문서 LLM 요약하기</>
+                                    )}
+                                </button>
+                            </div>
+                        )}
 
-                        <div className="translation-section">
-                            <button 
-                                className="btn-translate" 
-                                onClick={() => handleTranslate('summary')}
-                                disabled={translatingSummary}
-                            >
-                                {translatingSummary ? (
-                                    <>
-                                        <div className="spinner-small"></div>
-                                        번역 중...
-                                    </>
-                                ) : (
-                                    <>🌐 요약을 영문으로 번역</>
-                                )}
-                            </button>
-                        </div>
+                        {result.summary && <div className="summary-box">{result.summary}</div>}
+
+                        {result.summary && (
+                            <div className="translation-section">
+                                <button 
+                                    className="btn-translate" 
+                                    onClick={() => handleTranslate('summary')}
+                                    disabled={translatingSummary}
+                                >
+                                    {translatingSummary ? (
+                                        <>
+                                            <div className="spinner-small"></div>
+                                            번역 중...
+                                        </>
+                                    ) : (
+                                        <>🌐 요약을 영문으로 번역</>
+                                    )}
+                                </button>
+                            </div>
+                        )}
 
                         {translations.summary && (
                             <div className="translated-box">
@@ -404,11 +522,13 @@ const PdfSummary = () => {
                             </div>
                         )}
 
-                        <div className="result-actions">
-                            <button className="btn-download" onClick={handleDownload}>
-                                TXT 다운로드
-                            </button>
-                        </div>
+                        {result.summary && (
+                            <div className="result-actions">
+                                <button className="btn-download" onClick={handleDownload}>
+                                    TXT 다운로드
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

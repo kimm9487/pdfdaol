@@ -8,6 +8,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
+    tesseract-ocr \
+    poppler-utils \
+    libgl1 \
+    libreoffice \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. 요구 패키지 복사 및 설치

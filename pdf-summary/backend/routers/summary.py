@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from urllib.parse import quote
 import json
-from services.pdf_service import extract_text_from_pdf
+from services.pdf_service import extract_text_from_pdf, get_available_ocr_models
 from services.ai_service import summarize_text, get_available_models, translate_to_english, categorize_document
 from database import get_db, PdfDocument, get_user_documents, can_user_access_document , User, log_admin_activity # [정재훈 ] 2026-03-02 추가 : User
 import datetime
@@ -28,36 +28,26 @@ class DocumentUpdateRequest(BaseModel):
     is_important: bool = False
     password: Optional[str] = None
 
-@router.post("/summarize")
-async def summarize_pdf(
+
+async def _build_extraction_document(
     request: Request,
     file: UploadFile = File(...),
     user_id: int = Form(...),
-    model: str = Form(default="gemma3:latest"),
+    ocr_model: str = Form(default="pypdf2"),
     is_important: bool = Form(default=False),
     password: str = Form(default=None),
     is_public: bool = Form(default=True),
     db: Session = Depends(get_db),
 ):
-    overall_start = time.time()
-   
-    # 1. PDF 텍스트 추출
-    extraction_start = time.time()
-    try:
-        extraction_result = await extract_text_from_pdf(file)
-        extracted_text = extraction_result["text"]
-        extraction_time = extraction_result["processing_time"]
-    except Exception as e:
-        raise e
+    # 1. PDF 텍스트 추출 (선택한 OCR 모델 사용)
+    extraction_result = await extract_text_from_pdf(file, ocr_model=ocr_model)
+    extracted_text = extraction_result["text"]
+    extraction_time = extraction_result["processing_time"]
 
-    # 2. AI 요약
-    summary_start = time.time()
-    summary = await summarize_text(extracted_text, model=model)
-    summary_time = time.time() - summary_start
-
-    # 3. 파일 크기 계산
+    # 파일 크기 계산
+    await file.seek(0)
     file_size = len(await file.read())
-    await file.seek(0)  # 파일 포인터 리셋
+    await file.seek(0)
 
     # 4. 비밀번호 검증 (중요문서인 경우)
     stored_password = None
@@ -72,19 +62,20 @@ async def summarize_pdf(
         # 중요문서가 아니면 비밀번호는 null
         stored_password = None
 
-    # 5. DB 저장 (확장된 필드 포함)
+    # 5. DB 저장 (요약 전 단계)
     doc = PdfDocument(
         user_id=user_id,
         filename=file.filename,
         extracted_text=extracted_text,
-        summary=summary,
-        model_used=model,
+        summary=None,
+        ocr_model=extraction_result.get("ocr_model"),
+        model_used=None,
         char_count=len(extracted_text),
         file_size_bytes=file_size,
         total_pages=extraction_result["total_pages"],
         successful_pages=extraction_result["successful_pages"],
         extraction_time_seconds=round(extraction_time, 3),
-        summary_time_seconds=round(summary_time, 3),
+        summary_time_seconds=None,
         is_important=is_important,  # 중요문서 여부
         password=stored_password,  # 비밀번호 (중요문서만)
         is_public=is_public,  # 공개/비공개
@@ -96,7 +87,7 @@ async def summarize_pdf(
     # ===== [추가] 문서 카테고리 자동 분류[규호] =====
     try:
         category_start = time.time()
-        category = await categorize_document(title=file.filename, model=model)
+        category = await categorize_document(title=file.filename)
         category_time = time.time() - category_start
         
         doc.category = category
@@ -117,7 +108,7 @@ async def summarize_pdf(
         details=json.dumps({
             "filename": file.filename,
             "file_size_bytes": file_size,
-            "model": model,
+            "ocr_model": extraction_result["ocr_model"],
             "category": doc.category,
             "is_important": is_important,
             "is_public": is_public
@@ -125,15 +116,14 @@ async def summarize_pdf(
         ip_address=request.client.host
     )
 
-    overall_time = time.time() - overall_start
-
     return {
         "id": doc.id,
         "filename": file.filename,
         "original_length": len(extracted_text),
         "extracted_text": extracted_text,
-        "summary": summary,
-        "model_used": model,
+        "summary": None,
+        "model_used": None,
+        "ocr_model": extraction_result["ocr_model"],
         "category": doc.category,
         "created_at": datetime.datetime.now().isoformat(),
         "is_important": doc.is_important,
@@ -141,8 +131,8 @@ async def summarize_pdf(
         "is_public": doc.is_public,
         "timing": {
             "extraction_time": f"{extraction_time:.2f}초",
-            "summary_time": f"{summary_time:.2f}초",
-            "total_time": f"{overall_time:.2f}초"
+            "summary_time": None,
+            "total_time": f"{extraction_time:.2f}초"
         },
         "extraction_info": {
             "total_pages": extraction_result["total_pages"],
@@ -151,6 +141,121 @@ async def summarize_pdf(
             "file_size_mb": f"{file_size / (1024*1024):.2f}MB"
         }
     }
+
+
+@router.post("/extract")
+async def extract_pdf(
+    request: Request,
+    file: UploadFile = File(...),
+    user_id: int = Form(...),
+    ocr_model: str = Form(default="pypdf2"),
+    is_important: bool = Form(default=False),
+    password: str = Form(default=None),
+    is_public: bool = Form(default=True),
+    db: Session = Depends(get_db),
+):
+    return await _build_extraction_document(
+        request=request,
+        file=file,
+        user_id=user_id,
+        ocr_model=ocr_model,
+        is_important=is_important,
+        password=password,
+        is_public=is_public,
+        db=db,
+    )
+
+
+@router.post("/summarize-document")
+async def summarize_extracted_document(
+    request: Request,
+    document_id: int = Form(...),
+    user_id: int = Form(...),
+    model: str = Form(default="gemma3:latest"),
+    db: Session = Depends(get_db),
+):
+    if not can_user_access_document(db, user_id, document_id):
+        raise HTTPException(status_code=403, detail="이 문서에 접근할 권한이 없습니다.")
+
+    doc = db.query(PdfDocument).filter(PdfDocument.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
+    if not doc.extracted_text:
+        raise HTTPException(status_code=400, detail="먼저 텍스트를 추출해주세요.")
+
+    summary_start = time.time()
+    summary = await summarize_text(doc.extracted_text, model=model)
+    summary_time = time.time() - summary_start
+
+    doc.summary = summary
+    doc.model_used = model
+    doc.summary_time_seconds = round(summary_time, 3)
+    doc.updated_at = datetime.datetime.now()
+    db.commit()
+    db.refresh(doc)
+
+    log_admin_activity(
+        db=db,
+        admin_user_id=user_id,
+        action="DOCUMENT_SUMMARIZED",
+        target_type="DOCUMENT",
+        target_id=doc.id,
+        details=json.dumps({
+            "filename": doc.filename,
+            "llm_model": model,
+            "summary_length": len(summary),
+        }),
+        ip_address=request.client.host,
+    )
+
+    return {
+        "id": doc.id,
+        "document_id": doc.id,
+        "filename": doc.filename,
+        "extracted_text": doc.extracted_text,
+        "summary": doc.summary,
+        "ocr_model": doc.ocr_model,
+        "model_used": doc.model_used,
+        "summary_time": f"{summary_time:.2f}초",
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+    }
+
+
+@router.post("/summarize")
+async def summarize_pdf_legacy(
+    request: Request,
+    file: UploadFile = File(...),
+    user_id: int = Form(...),
+    model: str = Form(default="gemma3:latest"),
+    ocr_model: str = Form(default="pypdf2"),
+    is_important: bool = Form(default=False),
+    password: str = Form(default=None),
+    is_public: bool = Form(default=True),
+    db: Session = Depends(get_db),
+):
+    extracted = await _build_extraction_document(
+        request=request,
+        file=file,
+        user_id=user_id,
+        ocr_model=ocr_model,
+        is_important=is_important,
+        password=password,
+        is_public=is_public,
+        db=db,
+    )
+
+    summarize_result = await summarize_extracted_document(
+        request=request,
+        document_id=extracted["id"],
+        user_id=user_id,
+        model=model,
+        db=db,
+    )
+    extracted["summary"] = summarize_result["summary"]
+    extracted["model_used"] = summarize_result["model_used"]
+    extracted["timing"]["summary_time"] = summarize_result["summary_time"]
+    return extracted
 
 @router.post("/translate")
 async def translate_text(
@@ -284,6 +389,7 @@ async def get_document(
         "summary": doc.summary,
         "original_translation": doc.original_translation,
         "summary_translation": doc.summary_translation,
+        "ocr_model": doc.ocr_model,
         "model_used": doc.model_used,
         "translation_model": doc.translation_model,
         "char_count": doc.char_count,
@@ -319,6 +425,7 @@ async def list_user_documents(
             {
                 "id": doc.id,
                 "filename": doc.filename,
+                "ocr_model": doc.ocr_model,
                 "model_used": doc.model_used,
                 "char_count": doc.char_count,
                 "file_size_bytes": doc.file_size_bytes,
@@ -345,6 +452,11 @@ async def list_user_documents(
 async def list_models():
     models = await get_available_models()
     return {"models": models}
+
+
+@router.get("/ocr-models")
+async def list_ocr_models():
+    return {"ocr_models": get_available_ocr_models()}
 
 @router.post("/download")
 async def download_summary(summary: str = Form(...), filename: str = Form(default="summary")):

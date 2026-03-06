@@ -1,108 +1,145 @@
-import PyPDF2
-import io
-import time
 from fastapi import UploadFile, HTTPException
+import os
+import shutil
+import subprocess
+from pathlib import Path
+from tempfile import TemporaryDirectory, SpooledTemporaryFile
+
+from services.ocr import extract_with_model, list_available_ocr_models
 
 
-async def extract_text_from_pdf(file: UploadFile) -> dict:
+PDF_ONLY_MODELS = {"pypdf2"}
+PDF_EXTENSIONS = {".pdf"}
+OCR_DOC_EXTENSIONS = {".doc", ".docx", ".hwp"}
+ALLOWED_OCR_EXTENSIONS = PDF_EXTENSIONS | OCR_DOC_EXTENSIONS
+
+
+def _find_soffice() -> str:
+    env_path = os.getenv("LIBREOFFICE_PATH", "").strip()
+    if env_path and os.path.exists(env_path):
+        return env_path
+
+    # Common Windows path + PATH lookup.
+    win_default = r"C:\Program Files\LibreOffice\program\soffice.exe"
+    if os.path.exists(win_default):
+        return win_default
+
+    for cmd in ["soffice", "soffice.exe"]:
+        found = shutil.which(cmd)
+        if found:
+            return found
+
+    return ""
+
+
+def _build_upload_file_from_bytes(content: bytes, filename: str) -> UploadFile:
+    temp = SpooledTemporaryFile()
+    temp.write(content)
+    temp.seek(0)
+    return UploadFile(filename=filename, file=temp)
+
+
+def _convert_document_to_pdf_bytes(content: bytes, original_name: str) -> bytes:
+    soffice = _find_soffice()
+    if not soffice:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "DOC/DOCX/HWP 변환을 위해 LibreOffice가 필요합니다. "
+                "LibreOffice를 설치하고 LIBREOFFICE_PATH를 설정하거나 soffice를 PATH에 추가해주세요."
+            ),
+        )
+
+    original_suffix = Path(original_name).suffix.lower()
+    stem = Path(original_name).stem or "document"
+
+    with TemporaryDirectory() as tmp_dir:
+        input_path = Path(tmp_dir) / f"input{original_suffix}"
+        output_path = Path(tmp_dir) / f"{stem}.pdf"
+
+        input_path.write_bytes(content)
+
+        try:
+            result = subprocess.run(
+                [
+                    soffice,
+                    "--headless",
+                    "--convert-to",
+                    "pdf",
+                    "--outdir",
+                    tmp_dir,
+                    str(input_path),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=422, detail="문서 PDF 변환 시간이 초과되었습니다.")
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"문서 PDF 변환 실행 실패: {exc}")
+
+        if result.returncode != 0:
+            stderr = (result.stderr or "").strip()
+            raise HTTPException(status_code=422, detail=f"문서 PDF 변환 실패: {stderr or '알 수 없는 오류'}")
+
+        if not output_path.exists():
+            # Some filters may rename output unexpectedly; try any pdf in outdir.
+            pdf_candidates = list(Path(tmp_dir).glob("*.pdf"))
+            if not pdf_candidates:
+                raise HTTPException(status_code=422, detail="변환된 PDF 파일을 찾을 수 없습니다.")
+            output_path = pdf_candidates[0]
+
+        return output_path.read_bytes()
+
+
+async def extract_text_from_pdf(file: UploadFile, ocr_model: str = "pypdf2") -> dict:
     """
     업로드된 PDF 파일에서 텍스트를 추출합니다.
     처리 시간과 상세한 결과 정보를 함께 반환합니다.
     """
-    start_time = time.time()
-    
-    if not file.filename.endswith(".pdf"):
+    model = (ocr_model or "pypdf2").lower()
+    filename = file.filename or "uploaded_file"
+    extension = Path(filename).suffix.lower()
+
+    if model in PDF_ONLY_MODELS and extension not in PDF_EXTENSIONS:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail={
-                "message": "PDF 파일만 업로드 가능합니다.",
+                "message": "pypdf2 모델은 PDF 파일만 지원합니다.",
                 "reason": "잘못된 파일 형식",
-                "suggestion": ".pdf 확장자를 가진 파일을 선택해주세요."
-            }
+                "suggestion": "OCR 모델(tesseract/easyocr/paddleocr)을 선택하면 doc/docx/hwp도 처리할 수 있습니다."
+            },
         )
 
-    try:
-        contents = await file.read()
-        
-        if len(contents) == 0:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "message": "파일이 비어있습니다.",
-                    "reason": "파일 크기 0바이트",
-                    "suggestion": "유효한 PDF 파일을 업로드해주세요."
-                }
-            )
-
-        # PyPDF2로 PDF 읽기
-        try:
-            pdf_reader = PyPDF2.PdfReader(io.BytesIO(contents))
-        except Exception as e:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "message": "PDF 파일을 읽을 수 없습니다.",
-                    "reason": f"PDF 형식 오류: {str(e)}",
-                    "suggestion": "파일이 손상되었거나 암호화되어 있을 수 있습니다. 다른 PDF 파일을 시도해보세요."
-                }
-            )
-
-        total_pages = len(pdf_reader.pages)
-        if total_pages == 0:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "message": "PDF에 페이지가 없습니다.",
-                    "reason": "페이지 수: 0",
-                    "suggestion": "유효한 내용이 있는 PDF 파일을 업로드해주세요."
-                }
-            )
-
-        extracted_text = ""
-        successful_pages = 0
-        
-        for page_num, page in enumerate(pdf_reader.pages):
-            try:
-                page_text = page.extract_text()
-                if page_text and page_text.strip():
-                    extracted_text += f"\n[페이지 {page_num + 1}]\n{page_text}"
-                    successful_pages += 1
-            except Exception:
-                # 개별 페이지 오류는 무시하고 계속 진행
-                continue
-
-        processing_time = time.time() - start_time
-
-        if not extracted_text.strip():
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "message": "PDF에서 텍스트를 추출할 수 없습니다.",
-                    "reason": "이미지 기반 PDF 또는 텍스트가 없는 문서",
-                    "suggestion": "OCR(광학 문자 인식)이 필요한 스캔된 문서이거나 이미지만 포함된 PDF일 수 있습니다. 텍스트 기반 PDF를 사용해주세요.",
-                    "pages_processed": total_pages,
-                    "processing_time": f"{processing_time:.2f}초"
-                }
-            )
-
-        return {
-            "text": extracted_text.strip(),
-            "total_pages": total_pages,
-            "successful_pages": successful_pages,
-            "processing_time": processing_time,
-            "char_count": len(extracted_text.strip())
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        processing_time = time.time() - start_time
+    if model not in PDF_ONLY_MODELS and extension not in ALLOWED_OCR_EXTENSIONS:
         raise HTTPException(
-            status_code=500, 
+            status_code=400,
             detail={
-                "message": "PDF 처리 중 예상치 못한 오류가 발생했습니다.",
-                "reason": f"시스템 오류: {str(e)}",
-                "suggestion": "잠시 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의하세요.",
-                "processing_time": f"{processing_time:.2f}초"
-            }
+                "message": "지원하지 않는 파일 형식입니다.",
+                "reason": f"허용 확장자: {', '.join(sorted(ALLOWED_OCR_EXTENSIONS))}",
+                "suggestion": "pdf/doc/docx/hwp 파일을 업로드해주세요."
+            },
         )
+
+    if extension in PDF_EXTENSIONS:
+        return await extract_with_model(file=file, ocr_model=model)
+
+    # doc/docx/hwp 파일은 PDF로 변환 후 OCR 수행
+    original_bytes = await file.read()
+    await file.seek(0)
+
+    if not original_bytes:
+        raise HTTPException(status_code=422, detail="파일이 비어있습니다.")
+
+    pdf_bytes = _convert_document_to_pdf_bytes(original_bytes, filename)
+    converted_upload = _build_upload_file_from_bytes(pdf_bytes, f"{Path(filename).stem}.pdf")
+    result = await extract_with_model(file=converted_upload, ocr_model=model)
+    result["source_file"] = filename
+    result["converted_from"] = extension
+    return result
+
+
+def get_available_ocr_models() -> list:
+    return list_available_ocr_models()
