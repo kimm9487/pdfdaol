@@ -1,11 +1,36 @@
 // src/pages/UserList.jsx
 import React, { useState, useEffect } from "react";
+import { useNavigate } from 'react-router-dom';
+import { useSessionValidator } from '../hooks/useSessionValidator';
+import { useLogout } from '../hooks/useLogout';
 import "./UserList.css";
 
 // ────────────────────────────────────────────────────────────────
 // 메인 컴포넌트 : 전체 요약 목록 페이지
 // ────────────────────────────────────────────────────────────────
 const UserList = () => {
+
+  const navigate = useNavigate();
+
+    // ===== [추가] 세션 유효성 검증 (10분 주기, 강제 로그아웃 대상은 즉시+5초) =====
+    useSessionValidator(); // 기본값 10분, 강제 로그아웃 대상이면 즉시+5초 주기로 검증
+
+    console.log("📄 PdfSummary 컴포넌트 렌더링됨");
+    const API_BASE = "http://localhost:8000/api";
+
+    // ===== [추가] 로그인 정보 확인 =====
+    const handleLogout = useLogout(null, { showAlert: false });
+    
+    useEffect(() => {
+      const userDbId = localStorage.getItem('userDbId');
+      const sessionToken = localStorage.getItem('session_token');
+      
+      if (!userDbId || !sessionToken) {
+        console.log('로그인 정보 없음, 로그아웃 처리');
+        handleLogout();
+      }
+    }, []); // 마운트할 때 한 번만 실행
+  
   const currentUser = localStorage.getItem("userName");
   const currentUserIdStr = localStorage.getItem("userDbId");
   const currentUserId = currentUserIdStr ? Number(currentUserIdStr) : null;
@@ -191,7 +216,8 @@ const UserList = () => {
       return newSelection;
     });
   };
-  // 문서 다운로드
+
+  // 문서 다운로드 (기존 함수를 아래로 완전히 교체)
   const handleDownload = async () => {
     if (selectedItems.length === 0) {
       alert("다운로드할 항목을 선택하세요.");
@@ -202,15 +228,39 @@ const UserList = () => {
       .map(Number)
       .filter((id) => !isNaN(id) && id > 0);
 
-    const hasImportant = data
-      .filter((item) => safeSelectedIds.includes(Number(item.id)))
-      .some((doc) => doc.isImportant);
+    // 선택된 문서 중 중요 문서가 있는지 확인
+    const importantDocs = data.filter(
+      (item) => safeSelectedIds.includes(Number(item.id)) && item.isImportant,
+    );
+    const hasImportant = importantDocs.length > 0;
 
+    // 중요 문서가 있으면 사용자에게 미리 알림 + 예시 보여주기
     if (hasImportant) {
-      const confirm = window.confirm(
-        "중요 문서가 포함되어 있습니다.\nCSV에는 요약 스니펫만 포함됩니다.\n그래도 다운로드하시겠습니까?",
-      );
-      if (!confirm) return;
+      // 중요 문서 목록 미리 보여줘서 직관적으로 이해시키기 (최대 5개까지만 예시)
+      const importantList = importantDocs
+        .slice(0, 5)
+        .map(
+          (item) =>
+            `  • ID ${item.id} - ${item.filename.slice(0, 30)}${item.filename.length > 30 ? "..." : ""}`,
+        )
+        .join("\n");
+
+      const moreCount =
+        importantDocs.length > 5
+          ? `\n  (외 ${importantDocs.length - 5}개)`
+          : "";
+
+      const confirmMsg =
+        `중요 문서가 포함되어 있습니다. (${importantDocs.length}개)\n\n` +
+        `ZIP 파일로 다운로드합니다.\n` +
+        `• 일반 문서: 바로 열림\n` +
+        `• 중요 문서: 업로드 시 입력한 4자리 숫자 비밀번호를 사용하세요!\n\n` +
+        `비밀번호 예시:\n` +
+        `  • 업로드 시 1234 입력 → 비밀번호 1234\n` +
+        `  • 업로드 시 5678 입력 → 비밀번호 5678\n\n` +
+        `다운로드 진행할까요?`;
+
+      if (!window.confirm(confirmMsg)) return;
     }
 
     try {
@@ -221,7 +271,8 @@ const UserList = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             selected_ids: safeSelectedIds,
-            user_id: currentUserId, // ← 숫자 ID 직접 전송 (가장 중요!)
+            user_id: currentUserId,
+            format: hasImportant ? "zip" : "csv", // 중요 있으면 zip, 없으면 csv
           }),
         },
       );
@@ -234,14 +285,25 @@ const UserList = () => {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
+
+      // 파일명도 중요 여부에 따라 다르게
+      const filename = hasImportant
+        ? `${currentUser}_보호된_요약목록.zip`
+        : `${currentUser}_선택_요약목록.csv`;
+
       a.href = url;
-      a.download = `${currentUser}_선택_요약목록.csv`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
 
-      console.log("✅ CSV 다운로드 성공");
+      console.log("✅ 다운로드 성공");
+      alert(
+        hasImportant
+          ? "ZIP 파일 다운로드 완료!\n중요 문서는  입력한 4자리 번호를 비밀번호로 사용하세요."
+          : "CSV 파일 다운로드 완료!",
+      );
     } catch (err) {
       console.error("다운로드 오류:", err);
       alert("다운로드 실패: " + err.message);
@@ -409,8 +471,14 @@ const UserList = () => {
     );
   }
 
-  // ==================== 정렬 로직 ====================
+  // 필터링 모두 끝난 후 (publicFilter, importantFilter 등 다 끝난 직후)
+  // 페이지네이션 직전 위치에 넣으세요
+
+  // ────────────────────────────────────────────────
+  // 정렬 적용 : 컬럼 헤더가 있으면 컬럼 우선, 없으면 드롭다운 적용
+  // ────────────────────────────────────────────────
   if (sortConfig.key) {
+    // 컬럼 헤더 정렬이 선택된 경우 → 그대로 유지 (이미 잘 동작한다고 하셨으니)
     filteredData.sort((a, b) => {
       const key = sortConfig.key;
       const dir = sortConfig.direction;
@@ -453,7 +521,7 @@ const UserList = () => {
         return dir === "asc" ? aValue - bValue : bValue - aValue;
       }
 
-      // 문자열 (기본)
+      // 문자열
       const strA = String(aValue || "").toLowerCase();
       const strB = String(bValue || "").toLowerCase();
       return dir === "asc"
@@ -461,8 +529,21 @@ const UserList = () => {
         : strB.localeCompare(strA);
     });
   } else {
-    // 초기 로드 시 ID 작은 수부터
-    filteredData.sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+    // 컬럼 헤더 정렬이 없을 때만 → 드롭다운(최신순/오래된순) 적용
+    if (sortOption === "최신순") {
+      filteredData.sort((a, b) => {
+        const timeA = a.sortDate instanceof Date ? a.sortDate.getTime() : 0;
+        const timeB = b.sortDate instanceof Date ? b.sortDate.getTime() : 0;
+        return timeB - timeA; // 최신(큰 시간값) → 위로
+      });
+    } else if (sortOption === "오래된순") {
+      filteredData.sort((a, b) => {
+        const timeA = a.sortDate instanceof Date ? a.sortDate.getTime() : 0;
+        const timeB = b.sortDate instanceof Date ? b.sortDate.getTime() : 0;
+        return timeA - timeB; // 오래된(작은 시간값) → 위로
+      });
+    }
+    // else → 아무 정렬 안 함 (필요하면 기본 정렬 추가 가능)
   }
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
@@ -501,7 +582,7 @@ const UserList = () => {
         <div className="description-box">
           📝 전체 사용자의 요약 이력을 조회할 수 있습니다. (본인 포함 전체 공개)
           <button className="download-btn" onClick={handleDownload}>
-            선택 항목 CSV 다운로드
+            선택 항목 다운로드
           </button>
         </div>
       </div>
@@ -525,7 +606,9 @@ const UserList = () => {
           <select
             value={sortOption}
             onChange={(e) => {
-              setSortOption(e.target.value);
+              const value = e.target.value;
+              setSortOption(value);
+              setSortConfig({ key: null, direction: "asc" }); // ← 이 줄이 없으면 안 됨!
               setCurrentPage(1);
             }}
           >
