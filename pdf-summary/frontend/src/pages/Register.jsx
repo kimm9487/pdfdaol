@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { buildApiUrl } from '../config/api';
 import './Register.css';
 
 const Register = ({ setIsLoggedIn }) => {
@@ -28,7 +29,7 @@ const Register = ({ setIsLoggedIn }) => {
         }
 
         try {
-            const response = await fetch(`http://localhost:8000/auth/check-id?user_id=${formData.user_id}`);
+            const response = await fetch(buildApiUrl(`/auth/check-id?user_id=${formData.user_id}`));
             const data = await response.json();
 
             if (data.available) {
@@ -63,7 +64,7 @@ const Register = ({ setIsLoggedIn }) => {
         dataToSend.append('user_email', formData.user_email);
 
         try {
-            const response = await fetch('http://localhost:8000/auth/register', {
+            const response = await fetch(buildApiUrl('/auth/register'), {
                 method: 'POST',
                 body: dataToSend,
             });

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { buildApiUrl } from "../config/api";
 import "./Login.css";
 
 const Login = ({ setIsLoggedIn }) => {
@@ -43,7 +44,7 @@ const Login = ({ setIsLoggedIn }) => {
       formData.append("user_id", userId);
       formData.append("user_pw", userPw);
 
-      const response = await fetch("http://localhost:8000/auth/login", {
+      const response = await fetch(buildApiUrl('/auth/login'), {
         method: "POST",
         body: formData,
       });
@@ -71,8 +72,8 @@ const Login = ({ setIsLoggedIn }) => {
   const handleSendCode = async () => {
     const endpoint =
       showModal === "id"
-        ? "http://localhost:8000/auth/send-code-find-id"
-        : "http://localhost:8000/auth/send-code-reset-pw";
+        ? buildApiUrl('/auth/send-code-find-id')
+        : buildApiUrl('/auth/send-code-reset-pw');
 
     const formData = new FormData();
     formData.append("email", email);
@@ -105,7 +106,7 @@ const Login = ({ setIsLoggedIn }) => {
     formData.append("code", verificationCode);
 
     try {
-      const response = await fetch("http://localhost:8000/auth/verify-code", {
+      const response = await fetch(buildApiUrl('/auth/verify-code'), {
         method: "POST",
         body: formData,
       });
@@ -113,7 +114,7 @@ const Login = ({ setIsLoggedIn }) => {
       if (response.ok) {
         if (showModal === "id") {
           const idRes = await fetch(
-            "http://localhost:8000/auth/verify-find-id",
+            buildApiUrl('/auth/verify-find-id'),
             { method: "POST", body: formData },
           );
           const data = await idRes.json();
@@ -150,7 +151,7 @@ const Login = ({ setIsLoggedIn }) => {
 
     try {
       const response = await fetch(
-        "http://localhost:8000/auth/reset-password",
+        buildApiUrl('/auth/reset-password'),
         {
           method: "POST",
           body: formData,

@@ -1,5 +1,6 @@
 
 # -*- coding: utf-8 -*-
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -32,11 +33,25 @@ except Exception as e:
 app = FastAPI(title="PDF 요약 시스템 API")
 
 # [중요] CORS 미들웨어는 라우터 등록 "전에" 추가해야 합니다!
-# React 개발 서버(5173, 5174)와 frontend_old(5500)와의 통신을 위한 CORS 설정
+# 외부 IP 접속을 허용하기 위해 기본 localhost 목록 + IPv4 패턴을 허용합니다.
+cors_origins_env = os.getenv("CORS_ALLOW_ORIGINS", "")
+cors_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+if not cors_origins:
+    cors_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174", "http://localhost:3000","http://localhost:8000", "http://127.0.0.1:8000"],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_origin_regex=r"^https?://(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?$",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

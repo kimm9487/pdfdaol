@@ -1,8 +1,41 @@
 services:
-  # 1. 백엔드 서비스
+  db:
+    image: mariadb:11.4
+    container_name: pdf_db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-9487}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-pdf_summary}
+      MARIADB_USER: ${MARIADB_USER:-pdf_user}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-pdf_user_pw}
+    ports:
+      - "3307:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -uroot -p$$MARIADB_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./backend/database_migration.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+
   backend:
-    build: ./backend         # backend 폴더의 Dockerfile을 찾아 빌드
+    build: ./backend
     container_name: pdf_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${MARIADB_USER:-pdf_user}
+      DB_PASSWORD: ${MARIADB_PASSWORD:-pdf_user_pw}
+      DB_NAME: ${MARIADB_DATABASE:-pdf_summary}
     ports:
       - "8000:8000"
     environment:
@@ -13,19 +46,18 @@ services:
       - DB_PASSWORD=1111
       - DB_NAME=pdf_summary
     volumes:
-      - ./backend:/app       # 코드 수정 시 바로 반영되도록 연결
+      - ./backend:/app
 
-  # 2. 프론트엔드 서비스
   frontend:
-    build: ./frontend        # frontend 폴더의 Dockerfile을 찾아 빌드
+    build: ./frontend
     container_name: pdf_frontend
-    ports:
-      - "5173:5173"          # Vite 기본 포트
-    environment:
-      # 프론트에서 백엔드로 요청을 보낼 주소
-      - VITE_API_URL=http://localhost:8000
+    restart: unless-stopped
     depends_on:
-      - backend              # 백엔드가 먼저 켜진 후 프론트가 켜지도록 설정
+      - backend
+    environment:
+      VITE_API_PORT: "8000"
+    ports:
+      - "5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules    # 로컬과 도커의 노드 모듈 충돌 방지

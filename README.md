@@ -125,6 +125,15 @@ npm run dev
 
 ## 실행 방법 (Docker)
 
+선택: 루트 비밀번호/DB 계정 정보를 바꾸려면 `pdf-summary/.env` 파일을 만듭니다.
+
+```env
+MARIADB_ROOT_PASSWORD=9487
+MARIADB_DATABASE=pdf_summary
+MARIADB_USER=pdf_user
+MARIADB_PASSWORD=pdf_user_pw
+```
+
 ```bash
 cd pdf-summary
 docker compose up --build
@@ -132,6 +141,15 @@ docker compose up --build
 
 - Backend: `http://localhost:8000`
 - Frontend: `http://localhost:5173`
+- DB: `localhost:3306` (컨테이너명: `pdf_db`)
+
+초기 SQL(`backend/database_migration.sql`)은 DB 볼륨이 비어 있는 첫 실행 시 자동 적용됩니다.
+DB를 완전히 초기화하려면 아래 명령으로 볼륨까지 삭제 후 재실행합니다.
+
+```bash
+docker compose down -v
+docker compose up --build
+```
 
 ---
 

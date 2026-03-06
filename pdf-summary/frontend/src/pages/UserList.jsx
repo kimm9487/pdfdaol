@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import { useSessionValidator } from '../hooks/useSessionValidator';
 import { useLogout } from '../hooks/useLogout';
+import { API_BASE, buildApiUrl } from '../config/api';
 import "./UserList.css";
 
 // ────────────────────────────────────────────────────────────────
@@ -16,7 +17,6 @@ const UserList = () => {
     useSessionValidator(); // 기본값 10분, 강제 로그아웃 대상이면 즉시+5초 주기로 검증
 
     console.log("📄 PdfSummary 컴포넌트 렌더링됨");
-    const API_BASE = "http://localhost:8000/api";
 
     // ===== [추가] 로그인 정보 확인 =====
     const handleLogout = useLogout(null, { showAlert: false });
@@ -80,9 +80,7 @@ const UserList = () => {
         const userDbId = localStorage.getItem("userDbId");
         if (userDbId) {
           try {
-            const profileRes = await fetch(
-              `http://localhost:8000/auth/profile/${userDbId}`,
-            );
+            const profileRes = await fetch(buildApiUrl(`/auth/profile/${userDbId}`));
             if (profileRes.ok) {
               const profileData = await profileRes.json();
               localStorage.setItem("userRole", profileData.role);
@@ -94,7 +92,7 @@ const UserList = () => {
         }
 
         // 문서 목록 불러오기
-        const docRes = await fetch("http://localhost:8000/api/admin/documents");
+        const docRes = await fetch(buildApiUrl('/api/admin/documents'));
         if (!docRes.ok) throw new Error("문서 목록 불러오기 실패");
         const docResult = await docRes.json();
 
@@ -135,7 +133,7 @@ const UserList = () => {
         setData(mappedData);
 
         // 동적 모델 목록 불러오기 (필터 옵션용)
-        const modelRes = await fetch("http://localhost:8000/api/models");
+        const modelRes = await fetch(buildApiUrl('/api/models'));
         if (modelRes.ok) {
           const modelResult = await modelRes.json();
           if (modelResult.models && modelResult.models.length > 0) {
@@ -265,7 +263,7 @@ const UserList = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:8000/api/admin/download-selected",
+        buildApiUrl('/api/admin/download-selected'),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

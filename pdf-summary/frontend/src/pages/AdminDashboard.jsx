@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessionValidator } from '../hooks/useSessionValidator';
+import { API_BASE, buildApiUrl } from '../config/api';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
     // ===== [추가] 세션 유효성 검증 (useSessionValidator가 이미 처리함, 여기선 제거) =====
 
     const navigate = useNavigate();
-    const API_BASE = 'http://localhost:8000/api';
     const userDbIdStr = localStorage.getItem('userDbId');
     const adminId = userDbIdStr ? parseInt(userDbIdStr) : null; // 관리자 ID
     
@@ -95,7 +95,7 @@ const AdminDashboard = () => {
         setLoading(prev => ({ ...prev, sessions: true }));
         try {
             const userId = localStorage.getItem('userDbId');
-            const url = `http://localhost:8000/auth/admin/sessions?admin_user_id=${userId}`;
+            const url = buildApiUrl(`/auth/admin/sessions?admin_user_id=${userId}`);
             console.log('loadActiveSessions - 요청 URL:', url);
             const response = await fetch(url, {
                 cache: 'no-store'
@@ -139,7 +139,7 @@ const AdminDashboard = () => {
             const targetUserId = targetSession ? targetSession.user_id : null;
             console.log('handleForceLogout - 강제 로그아웃 대상 user_id:', targetUserId);
             
-            const url = `http://localhost:8000/auth/admin/sessions/${sessionId}?admin_user_id=${userId}`;
+            const url = buildApiUrl(`/auth/admin/sessions/${sessionId}?admin_user_id=${userId}`);
             console.log('handleForceLogout - 최종 URL:', url);
             const response = await fetch(url, {
                 method: 'DELETE'
@@ -167,7 +167,7 @@ const AdminDashboard = () => {
     const loadAllUsers = async () => {
         setLoading(prev => ({ ...prev, users: true }));
         try {
-            const response = await fetch('http://localhost:8000/auth/users', {
+            const response = await fetch(buildApiUrl('/auth/users'), {
                 cache: 'no-store'
             });
             if (!response.ok) {
@@ -201,7 +201,7 @@ const AdminDashboard = () => {
             const formData = new FormData();
             formData.append('admin_user_id', adminId);
 
-            const response = await fetch(`http://localhost:8000/auth/users/${userId}`, {
+            const response = await fetch(buildApiUrl(`/auth/users/${userId}`), {
                 method: 'DELETE',
                 body: formData
             });

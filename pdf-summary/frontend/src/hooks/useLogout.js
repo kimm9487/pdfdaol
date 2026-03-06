@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useRef } from 'react';
+import { buildApiUrl } from '../config/api';
 
 /**
  * 로그아웃 기능을 제공하는 Hook
@@ -36,7 +37,7 @@ export const useLogout = (setIsLoggedIn = null, options = {}) => {
             formData.append('session_token', sessionToken);
           }
           
-          const response = await fetch('http://localhost:8000/auth/logout', {
+          const response = await fetch(buildApiUrl('/auth/logout'), {
             method: 'POST',
             body: formData
           });

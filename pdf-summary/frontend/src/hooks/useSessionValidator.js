@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useLogout } from './useLogout';
+import { buildApiUrl } from '../config/api';
 
 /**
  * 세션 유효성을 주기적으로 검증하고, 강제 로그아웃 감지 시 처리
@@ -22,7 +23,7 @@ export const useSessionValidator = (checkInterval = 600000) => {
           return;
         }
 
-        const validateUrl = `http://localhost:8000/auth/sessions/validate?user_id=${userDbId}&session_token=${sessionToken}`;
+        const validateUrl = buildApiUrl(`/auth/sessions/validate?user_id=${userDbId}&session_token=${sessionToken}`);
         console.log('검증 URL:', validateUrl);
 
         const response = await fetch(validateUrl, {

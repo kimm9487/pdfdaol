@@ -1,8 +1,17 @@
+<<<<<<< HEAD
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSessionValidator } from "../hooks/useSessionValidator";
 import { useLogout } from "../hooks/useLogout";
 import "./PdfSummary.css";
+=======
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useSessionValidator } from '../hooks/useSessionValidator';
+import { useLogout } from '../hooks/useLogout';
+import { API_BASE } from '../config/api';
+import './PdfSummary.css';
+>>>>>>> d4b3e0e02102c72f9252fba01d50e8edf1cbee3c
 
 const PdfSummary = () => {
   const navigate = useNavigate();
@@ -10,8 +19,12 @@ const PdfSummary = () => {
   // ===== [추가] 세션 유효성 검증 (10분 주기, 강제 로그아웃 대상은 즉시+5초) =====
   useSessionValidator(); // 기본값 10분, 강제 로그아웃 대상이면 즉시+5초 주기로 검증
 
+<<<<<<< HEAD
   console.log("📄 PdfSummary 컴포넌트 렌더링됨");
   const API_BASE = "http://localhost:8000/api";
+=======
+    console.log("📄 PdfSummary 컴포넌트 렌더링됨");
+>>>>>>> d4b3e0e02102c72f9252fba01d50e8edf1cbee3c
 
   // ===== [추가] 로그인 정보 확인 =====
   const handleLogout = useLogout(null, { showAlert: false });
@@ -247,10 +260,22 @@ const PdfSummary = () => {
         [textType]: data.translated_text,
       }));
 
+<<<<<<< HEAD
       setStatus({
         type: "success",
         msg: `${textType === "original" ? "원문" : "요약"}이 영문으로 번역되어 저장되었습니다.`,
       });
+=======
+            setResult(data);
+            setStatus({ type: '', msg: '' });
+        } catch (err) {
+            console.error("Fetch Error:", err);
+            setStatus({ type: 'error', msg: "서버에 연결할 수 없습니다. 백엔드 API 주소를 확인해주세요. 에러: " + err.message });
+        } finally {
+            setLoading(false);
+        }
+    };
+>>>>>>> d4b3e0e02102c72f9252fba01d50e8edf1cbee3c
 
       setTimeout(() => setStatus({ type: "", msg: "" }), 3000);
     } catch (err) {
