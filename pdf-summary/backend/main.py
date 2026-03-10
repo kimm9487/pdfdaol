@@ -121,5 +121,11 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    # app 대신 "main:app"을 넣고 reload=True 추가
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    reload_enabled = os.getenv("UVICORN_RELOAD", "false").lower() == "true"
+    workers = int(os.getenv("UVICORN_WORKERS", "1"))
+
+    # reload 모드와 workers>1은 함께 사용할 수 없으므로 안전하게 분기합니다.
+    if reload_enabled:
+        uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    else:
+        uvicorn.run("main:app", host="0.0.0.0", port=8000, workers=max(1, workers))

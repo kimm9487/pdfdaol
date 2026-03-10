@@ -130,10 +130,16 @@ async def _translate_long_text(text: str, model: str) -> str:
         
         chunk = text[start:end]
         chunks.append(chunk)
-        
-        start = max(0, end - OVERLAP)
-        if start >= end:
+
+        # 마지막 청크를 추가한 뒤에는 루프를 종료해야 중복/무한 루프를 방지할 수 있습니다.
+        if end >= len(text):
             break
+
+        next_start = max(0, end - OVERLAP)
+        # 경계 조건에서 start가 전진하지 못하면 안전하게 종료합니다.
+        if next_start <= start:
+            break
+        start = next_start
     
     translated_chunks = []
     for i, chunk in enumerate(chunks):
