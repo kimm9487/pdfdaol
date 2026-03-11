@@ -119,19 +119,26 @@ h2 {
   flex: 1 1 auto;
 }
 
-@media (max-width: 1200px) {
-  .filter-bar {
-    flex-direction: column;
+/* 900px 이하에서는 일부 열 강제 축소 + 스크롤 강조 */
+@media (max-width: 900px) {
+  .summary-table th:nth-child(10),
+  .summary-table td:nth-child(10),
+  .summary-table th:nth-child(11),
+  .summary-table td:nth-child(11),
+  .summary-table th:nth-child(12),
+  .summary-table td:nth-child(12) {
+    min-width: 70px; /* 조금 더 좁혀도 됨 */
   }
-  .filter-bar select,
-  .filter-bar .search-group {
-    border-right: none;
-    border-bottom: 1px solid #d1d5db;
+
+  .status-badge {
+    font-size: 11.5px;
+    padding: 3px 7px;
+    min-width: 54px; /* 너무 작아지지 않게 */
   }
-  .filter-bar .search-btn {
-    border-bottom: none;
-  }
+  
 }
+
+
 
 /* 검색창 */
 .search-group {
@@ -241,6 +248,7 @@ h2 {
   border-bottom: 1px solid #eee;
   font-size: 14px;
   position: relative;
+  word-break: break-all; /* 영어 긴 단어도 강제 줄바꿈 */
 }
 
 /* 내 요약 항목 강조 */
@@ -266,6 +274,7 @@ h2 {
   border-radius: 4px;
   font-size: 13px;
 }
+
 
 /* 보기 버튼 */
 .view-btn {
@@ -707,24 +716,24 @@ h2 {
 }
 
 /* 원문자수 */
-.summary-table th:nth-child(8),
-.summary-table td:nth-child(8) {
-  width: 110px;
-  min-width: 110px;
-  text-align: right;
+.summary-table th:nth-child(11),
+.summary-table td:nth-child(11) {
+  width: 80px;
+  min-width: 80px;
+  text-align: center;
 }
 
 /* 분류 (새 컬럼) */
-.summary-table th:nth-child(9),
-.summary-table td:nth-child(9) {
-  width: 90px;
-  min-width: 90px;
+.summary-table th:nth-child(12),
+.summary-table td:nth-child(12) {
+  width: 80px;
+  min-width: 80px;
   text-align: center;
   color: #6b7280;
 }
 
 /* 분류 컬럼 헤더(th) 글씨 색상 & 스타일 강제 통일 (회색 → 흰색) */
-.summary-table th:nth-child(9) {
+.summary-table th:nth-child(12) {
   color: white !important; /* 헤더 전체가 흰색이니 강제 흰색 */
   font-weight: bold !important; /* 다른 헤더와 동일하게 bold */
   font-size: 16px !important; /* 크기 통일 (필요시 조정) */
