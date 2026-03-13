@@ -4,7 +4,7 @@ import uuid
 import datetime
 from fastapi import APIRouter, Form, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from database import Base, engine, get_db, User, UserSession, log_admin_activity
+from database import Base, engine, get_db, User, UserSession, AdminActivityLog, PdfDocument, log_admin_activity
 
 router = APIRouter()
 
@@ -232,3 +232,61 @@ def update_user_profile(
         "full_name": user.full_name,
         "email": user.email
     }
+
+
+@router.delete("/auth/withdraw/{username}")
+def withdraw_user(
+    username: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    일반 사용자 회원 탈퇴
+    - username 기준으로 본인 계정 탈퇴 처리
+    - 참조 데이터(user_sessions, admin_activity_logs, pdf_documents) 정리 후 사용자 삭제
+    """
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="탈퇴할 사용자를 찾을 수 없습니다.")
+
+        if user.role == 'admin':
+            raise HTTPException(status_code=400, detail="관리자 계정은 이 경로로 탈퇴할 수 없습니다.")
+
+        user_id = user.id
+
+        # FK 참조 정리
+        deleted_sessions = (
+            db.query(UserSession)
+            .filter(UserSession.user_id == user_id)
+            .delete(synchronize_session=False)
+        )
+        deleted_logs = (
+            db.query(AdminActivityLog)
+            .filter(AdminActivityLog.admin_user_id == user_id)
+            .delete(synchronize_session=False)
+        )
+        deleted_docs = (
+            db.query(PdfDocument)
+            .filter(PdfDocument.user_id == user_id)
+            .delete(synchronize_session=False)
+        )
+
+        db.delete(user)
+        db.commit()
+
+        return {
+            "message": "회원 탈퇴가 완료되었습니다.",
+            "withdrawn_username": username,
+            "cleanup": {
+                "sessions": deleted_sessions,
+                "activity_logs": deleted_logs,
+                "documents": deleted_docs,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"회원 탈퇴 실패: {str(e)}")

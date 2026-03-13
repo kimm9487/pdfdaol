@@ -1,12 +1,15 @@
 
 # -*- coding: utf-8 -*-
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 # database.py에서 설정한 Base, engine, get_db를 가져와 설정을 통일합니다.
 from database import Base, engine, get_db
+from utils.discord import send_discord_alert
 
 # 분할된 라우터들 임포트
 from routers.auth import router as auth_router
@@ -31,6 +34,32 @@ except Exception as e:
 
 # --- 2. FastAPI 앱 설정 ---
 app = FastAPI(title="PDF 요약 시스템 API")
+
+
+# --- 전역 HTTPException 핸들러 (모든 4xx/5xx 자동 디스코드 알림) ---
+@app.exception_handler(HTTPException)
+async def http_exception_discord_handler(request: Request, exc: HTTPException):
+    level = "error" if exc.status_code >= 500 else "warning"
+
+    # query params 우선, 없으면 form data에서 user_id 추출
+    user_id = request.query_params.get("user_id")
+    if not user_id:
+        try:
+            form = await request.form()
+            user_id = form.get("user_id")
+        except Exception:
+            pass
+    user_id = str(user_id) if user_id else "알 수 없음"
+
+    await send_discord_alert(
+        error_msg=exc.detail,
+        user_id=user_id,
+        path=request.url.path,
+        level=level,
+        status_code=exc.status_code
+    )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
 
 # [중요] CORS 미들웨어는 라우터 등록 "전에" 추가해야 합니다!
 # 외부 IP 접속을 허용하기 위해 기본 localhost 목록 + IPv4 패턴을 허용합니다.
@@ -93,5 +122,11 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    # app 대신 "main:app"을 넣고 reload=True 추가
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    reload_enabled = os.getenv("UVICORN_RELOAD", "false").lower() == "true"
+    workers = int(os.getenv("UVICORN_WORKERS", "1"))
+
+    # reload 모드와 workers>1은 함께 사용할 수 없으므로 안전하게 분기합니다.
+    if reload_enabled:
+        uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    else:
+        uvicorn.run("main:app", host="0.0.0.0", port=8000, workers=max(1, workers))

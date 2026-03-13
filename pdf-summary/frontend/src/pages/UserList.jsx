@@ -1,36 +1,35 @@
 // src/pages/UserList.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate } from 'react-router-dom';
-import { useSessionValidator } from '../hooks/useSessionValidator';
-import { useLogout } from '../hooks/useLogout';
-import { API_BASE, buildApiUrl } from '../config/api';
+import { useNavigate } from "react-router-dom";
+import { useSessionValidator } from "../hooks/useSessionValidator";
+import { useLogout } from "../hooks/useLogout";
+import { API_BASE, buildApiUrl } from "../config/api";
 import "./UserList.css";
 
 // ────────────────────────────────────────────────────────────────
 // 메인 컴포넌트 : 전체 요약 목록 페이지
 // ────────────────────────────────────────────────────────────────
 const UserList = () => {
-
   const navigate = useNavigate();
 
-    // ===== [추가] 세션 유효성 검증 (10분 주기, 강제 로그아웃 대상은 즉시+5초) =====
-    useSessionValidator(); // 기본값 10분, 강제 로그아웃 대상이면 즉시+5초 주기로 검증
+  // ===== [추가] 세션 유효성 검증 (10분 주기, 강제 로그아웃 대상은 즉시+5초) =====
+  useSessionValidator(); // 기본값 10분, 강제 로그아웃 대상이면 즉시+5초 주기로 검증
 
-    console.log("📄 PdfSummary 컴포넌트 렌더링됨");
+  console.log("📄 PdfSummary 컴포넌트 렌더링됨");
 
-    // ===== [추가] 로그인 정보 확인 =====
-    const handleLogout = useLogout(null, { showAlert: false });
-    
-    useEffect(() => {
-      const userDbId = localStorage.getItem('userDbId');
-      const sessionToken = localStorage.getItem('session_token');
-      
-      if (!userDbId || !sessionToken) {
-        console.log('로그인 정보 없음, 로그아웃 처리');
-        handleLogout();
-      }
-    }, []); // 마운트할 때 한 번만 실행
-  
+  // ===== [추가] 로그인 정보 확인 =====
+  const handleLogout = useLogout(null, { showAlert: false });
+
+  useEffect(() => {
+    const userDbId = localStorage.getItem("userDbId");
+    const sessionToken = localStorage.getItem("session_token");
+
+    if (!userDbId || !sessionToken) {
+      console.log("로그인 정보 없음, 로그아웃 처리");
+      handleLogout();
+    }
+  }, []); // 마운트할 때 한 번만 실행
+
   const currentUser = localStorage.getItem("userName");
   const currentUserIdStr = localStorage.getItem("userDbId");
   const currentUserId = currentUserIdStr ? Number(currentUserIdStr) : null;
@@ -80,7 +79,9 @@ const UserList = () => {
         const userDbId = localStorage.getItem("userDbId");
         if (userDbId) {
           try {
-            const profileRes = await fetch(buildApiUrl(`/auth/profile/${userDbId}`));
+            const profileRes = await fetch(
+              buildApiUrl(`/auth/profile/${userDbId}`),
+            );
             if (profileRes.ok) {
               const profileData = await profileRes.json();
               localStorage.setItem("userRole", profileData.role);
@@ -92,7 +93,7 @@ const UserList = () => {
         }
 
         // 문서 목록 불러오기
-        const docRes = await fetch(buildApiUrl('/api/admin/documents'));
+        const docRes = await fetch(buildApiUrl("/api/admin/documents"));
         if (!docRes.ok) throw new Error("문서 목록 불러오기 실패");
         const docResult = await docRes.json();
 
@@ -133,7 +134,7 @@ const UserList = () => {
         setData(mappedData);
 
         // 동적 모델 목록 불러오기 (필터 옵션용)
-        const modelRes = await fetch(buildApiUrl('/api/models'));
+        const modelRes = await fetch(buildApiUrl("/api/models"));
         if (modelRes.ok) {
           const modelResult = await modelRes.json();
           if (modelResult.models && modelResult.models.length > 0) {
@@ -164,7 +165,7 @@ const UserList = () => {
 
   // 테이블 상단에 컬럼 정의 배열 만들기
   const columns = [
-    { key: null, label: "선택", width: "40px", sortable: false },
+    { key: null, label: "선택", sortable: false },
     { key: "id", label: "#", sortable: true },
     { key: "datetime", label: "날짜 / 시간", sortable: true },
     { key: "username", label: "ID", sortable: true },
@@ -263,7 +264,7 @@ const UserList = () => {
 
     try {
       const response = await fetch(
-        buildApiUrl('/api/admin/download-selected'),
+        buildApiUrl("/api/admin/download-selected"),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -410,6 +411,7 @@ const UserList = () => {
   if (error)
     return <div style={{ padding: "40px", color: "red" }}>오류: {error}</div>;
 
+  //필터
   let filteredData = data.filter(
     (item) =>
       (item.filename || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -726,35 +728,37 @@ const UserList = () => {
               ))}
             </tr>
           </thead>
-
           <tbody>
             {currentItems.map((item) => (
               <tr key={item.id} className={isMyDocument(item) ? "my-item" : ""}>
+                {/* 1. 선택 */}
                 <td>
                   <input
                     type="checkbox"
                     checked={selectedItems.includes(Number(item.id))}
-                    onChange={() =>
-                      handleCheckboxChange(
-                        item.id,
-                        item.username,
-                        item.fullName,
-                      )
-                    }
-                    disabled={!(item.isPublic || isMyDocument(item) || isAdmin)} // 공개 = 체크 가능, 비공개 = 본인만 가능 , 관리자 전부 허용
+                    onChange={() => handleCheckboxChange(item.id)}
+                    disabled={!(item.isPublic || isMyDocument(item) || isAdmin)}
                   />
                 </td>
+
+                {/* 2. # */}
                 <td>{item.id}</td>
+
+                {/* 3. 날짜 / 시간 */}
                 <td
                   dangerouslySetInnerHTML={{
                     __html: highlightText(item.datetime, searchTerm),
                   }}
                 />
+
+                {/* 4. ID */}
                 <td
                   dangerouslySetInnerHTML={{
                     __html: highlightText(item.username, searchTerm),
                   }}
                 />
+
+                {/* 5. 사용자 */}
                 <td
                   className="user-cell"
                   data-username={item.username}
@@ -762,27 +766,36 @@ const UserList = () => {
                     __html: highlightText(item.fullName, searchTerm),
                   }}
                 />
+
+                {/* 6. 파일명 */}
                 <td
                   dangerouslySetInnerHTML={{
                     __html: highlightText(item.filename, searchTerm),
                   }}
                 />
+
+                {/* 7. AI 모델 */}
                 <td
                   dangerouslySetInnerHTML={{
                     __html: highlightText(item.model, searchTerm),
                   }}
                 />
+
+                {/* 8. 원문자수 */}
                 <td
                   dangerouslySetInnerHTML={{
                     __html: highlightText(item.charCount, searchTerm),
                   }}
                 />
-                {/* 추가: 분류 td */}
+
+                {/* 9. 분류 */}
                 <td
                   dangerouslySetInnerHTML={{
                     __html: highlightText(item.category || "기타", searchTerm),
                   }}
                 />
+
+                {/* 10. 공개여부 */}
                 <td>
                   {item.isPublic ? (
                     <span className="status-badge public">공개</span>
@@ -790,6 +803,8 @@ const UserList = () => {
                     <span className="status-badge private">비공개</span>
                   )}
                 </td>
+
+                {/* 11. 중요 */}
                 <td>
                   {item.isImportant ? (
                     <span className="status-badge important">중요</span>
@@ -797,11 +812,21 @@ const UserList = () => {
                     "-"
                   )}
                 </td>
-                <td
-                  dangerouslySetInnerHTML={{
-                    __html: highlightText(item.status, searchTerm),
-                  }}
-                />
+
+                {/* 12. 상태 */}
+                <td>
+                  {item.status ? (
+                    <span
+                      className={`status-badge ${item.status === "완료" ? "completed" : ""}`}
+                    >
+                      {highlightText(item.status, searchTerm)}
+                    </span>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+
+                {/* 13. 보기 */}
                 <td>
                   <button
                     className="view-btn"
@@ -813,14 +838,6 @@ const UserList = () => {
                 </td>
               </tr>
             ))}
-
-            {Array.from({ length: itemsPerPage - currentItems.length }).map(
-              (_, i) => (
-                <tr key={`empty-${i}`} className="empty-row">
-                  <td colSpan={13}>&nbsp;</td>
-                </tr>
-              ),
-            )}
           </tbody>
         </table>
       </div>
