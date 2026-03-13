@@ -135,10 +135,7 @@ h2 {
     padding: 3px 7px;
     min-width: 54px; /* 너무 작아지지 않게 */
   }
-  
 }
-
-
 
 /* 검색창 */
 .search-group {
@@ -274,7 +271,6 @@ h2 {
   border-radius: 4px;
   font-size: 13px;
 }
-
 
 /* 보기 버튼 */
 .view-btn {

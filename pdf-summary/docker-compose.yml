@@ -44,7 +44,8 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-
+volumes:
+  ollama_data:
 # 4. 로컬 DB를 안 쓰므로 아래 볼륨 설정도 지워도 무방합니다.
 # volumes:
 #   mariadb_data:

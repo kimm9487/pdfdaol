@@ -551,3 +551,44 @@
 .pagination-info span {
   margin: 0 10px;
 }
+
+/* ===== [추가] 모달 내 이메일 인증 버튼/타이머 스타일 ===== */
+.btn-small {
+  width: 100px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.2s;
+  padding: 0;
+}
+
+.btn-small:hover {
+  background-color: #5a6268;
+}
+
+.btn-small:disabled {
+  background-color: #ced4da;
+  cursor: not-allowed;
+}
+
+.btn-success {
+  background-color: #28a745 !important;
+  cursor: default;
+}
+
+/* 모달 애니메이션 부드럽게 */
+.modal-overlay {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

@@ -12,12 +12,11 @@ from database import Base, engine, get_db
 from utils.discord import send_discord_alert
 
 # 분할된 라우터들 임포트
-from routers.auth import router as auth_router
+from routers.auth.router import router as auth_router # 인증 관련 라우터 (회원가입, 로그인, 프로필 등) 2026.03.13 추가 auth.py에서 auth폴더로 변경
 from routers.sessions import router as sessions_router
 from routers.admin import router as admin_router
 from routers.history import router as history_router
 from routers.summary import router as summary_router
-from routers.find_account import router as find_account_router
 from routers.is_public import router as is_public_router
 from routers.download import router as download_router
 
@@ -86,14 +85,11 @@ app.add_middleware(
 )
 
 # --- 라우터 등록 ---
-# 1. 인증 및 계정 관리 (회원가입, 로그인, 프로필)
+# 1. 인증 및 계정 관리 (회원가입, 로그인, 프로필, 계정 찾기)
 app.include_router(auth_router)
 
 # 1-1. 세션 관리 (로그인 이력, 강제 로그아웃 등)
 app.include_router(sessions_router)
-
-# 2. 계정 찾기 (이메일 인증)
-app.include_router(find_account_router)
 
 # 3. 문서 요약 관련
 app.include_router(summary_router, prefix="/api", tags=["summary"])
