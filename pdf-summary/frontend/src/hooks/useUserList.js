@@ -411,7 +411,7 @@ export const useUserList = () => {
       return;
 
     try {
-      const res = await fetch(buildApiUrl("/api/admin/download-selected"), {
+      const res = await fetch(buildApiUrl("/api/documents/download-selected"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

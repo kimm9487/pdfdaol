@@ -13,9 +13,9 @@ import json
 
 from database import get_db, PdfDocument, User, log_admin_activity
 
-router = APIRouter(prefix="/api/admin", tags=["admin-download"])
+download_router = APIRouter(tags=["Document Download"])
 
-@router.post("/download-selected")
+@download_router.post("/download-selected")
 async def download_selected_documents(
     body: dict = Body(...),
     db: Session = Depends(get_db)
@@ -91,41 +91,18 @@ async def download_selected_documents(
         print("[DEBUG] CSV 모드 진입 → 기존 CSV 생성")
 
         output = io.StringIO()
-        writer = csv.writer(
-        output,
-        quoting=csv.QUOTE_MINIMAL,      # 또는 QUOTE_ALL로 더 안전하게
-        lineterminator='\r\n',          # Windows 줄바꿈
-        quotechar='"',
-        doublequote=True
-        )
+        writer = csv.writer(output)
 
         writer.writerow([
             "문서ID", "파일명", "생성일시", "사용자 이름", "사용자 ID (username)",
-            "사용 모델", "원문자수", "요약 내용 (최대 300자)" , "OCR 스캔 원문"
+            "사용 모델", "원문자수", "요약 내용 (최대 300자)"
         ])
 
         for doc in documents:
             if doc.is_important:
                 summary_content = "중요 문서: 비밀번호 필요 (스니펫 생략)"
-                original_text   = "중요 문서: 원문 비공개"   # ← 보안상 필수
             else:
                 summary_content = (doc.summary or "요약 내용 없음")[:300] + ("..." if doc.summary and len(doc.summary) > 300 else "")
-            
-                original_text = doc.extracted_text or "원문 없음"
-
-                # ───────────────────────────────────────────────
-                # DB 값과 100% 일치시키기 위한 최소 처리만
-                # ───────────────────────────────────────────────
-                # 1. Windows ↔ Unix 개행 차이만 통일 (거의 필수, 안 하면 Excel에서 깨질 확률 ↑)
-                original_text = original_text.replace('\r\n', '\n').replace('\r', '\n')
-
-                # 2. 그 외에는 **절대** 추가 전처리 하지 않음
-                #    → split(), join(), replace('\n', ' ') 등 전부 제거
-
-                # 3. (선택) Excel 셀 길이 제한 대비 안전장치
-                MAX_EXCEL_CELL = 32767
-                if len(original_text) > MAX_EXCEL_CELL - 100:
-                    original_text = original_text[:MAX_EXCEL_CELL - 100] + " …(길이 제한으로 잘림)"
 
             writer.writerow([
                 doc.id,
@@ -135,8 +112,7 @@ async def download_selected_documents(
                 doc.owner.username if getattr(doc, 'owner', None) else "N/A",
                 doc.model_used,
                 doc.char_count,
-                summary_content,
-                original_text  # 원문 컬럼 추가 
+                summary_content
             ])
 
         content = output.getvalue().encode("utf-8-sig")
@@ -193,21 +169,12 @@ async def generate_protected_zip_response(normal_docs, important_docs, username,
                 )
                 protected_zip.setpassword(password)
                 print(f"[일반 사용자] 비밀번호 적용 - DB 값: {doc.password}")
-            # 중요 문서 리스트
+
             content = (
-                f"문서 ID       : {doc.id}\n"
-                f"파일명        : {doc.filename}\n"
-                f"생성일시      : {doc.created_at.isoformat() if doc.created_at else '없음'}\n"
-                f"사용 모델     : {doc.model_used or '없음'}\n"
-                f"원문자수      : {doc.char_count or 0}자\n"
-                f"\n"
-                f"===== 요약 내용 =====\n"
-                f"{doc.summary or '요약 내용 없음'}\n"
-                f"\n"
-                f"===== 본문 내용 (OCR 추출 원문) =====\n"
-                f"{doc.extracted_text or '원문 추출되지 않음'}\n"
+                f"문서 ID: {doc.id}\n"
+                f"파일명: {doc.filename}\n"
+                f"요약 내용:\n{doc.summary or '요약 내용 없음'}"
             ).encode('utf-8')
-        
             protected_zip.writestr(f"{doc.id}_요약.txt", content)
             protected_zip.close()
 
@@ -235,58 +202,23 @@ async def generate_protected_zip_response(normal_docs, important_docs, username,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
     )
 
-# csv 구현 로직
+
 async def generate_csv_content(documents, is_admin: bool):
     output = io.StringIO()
-    writer = csv.writer(
-        output,
-        quoting=csv.QUOTE_ALL, # 셀 밀림 방지 핵심
-        lineterminator='\r\n',
-        quotechar='"',
-        doublequote=True
-    )
-
-# 헤더 고정 — 이 순서·이름 그대로 사용 (복붙해서 실수 없게)
-    writer.writerow([
-        "문서ID",
-        "파일명",
-        "생성일시",
-        "사용자 이름",
-        "사용자 ID (username)",
-        "사용 모델",
-        "원문자수",
-        "요약 내용 (최대 300자)",
-        "OCR 스캔 원문"
-    ])
+    writer = csv.writer(output)
+    writer.writerow(["문서ID", "파일명", "생성일시", "사용자", "모델", "원문자수", "요약내용", "중요여부", "공개여부"])
 
     for doc in documents:
-        if doc.is_important and not is_admin:
-            summary_content = "중요 문서: 비밀번호 필요 (스니펫 생략)"
-            original_text   = "중요 문서: 원문 비공개"
-        else:
-            summary_content = (doc.summary or "요약 내용 없음")[:300]
-            if doc.summary and len(doc.summary) > 300:
-                summary_content += "..."
-
-            original_text = doc.extracted_text or "원문 없음"
-            original_text = original_text.replace('\r\n', '\n').replace('\r', '\n')
-
-            MAX_EXCEL_CELL = 32767
-            if len(original_text) > MAX_EXCEL_CELL - 100:
-                original_text = original_text[:MAX_EXCEL_CELL - 100] + " …(길이 제한으로 잘림)"
-
-        # 행 데이터도 헤더와 순서 정확히 맞춤
+        summary_content = doc.summary or "" if is_admin or not doc.is_important else "[중요 문서 - 비밀번호 필요]"
         writer.writerow([
             doc.id,
             doc.filename,
-            doc.created_at.isoformat() if doc.created_at else "없음",
-            doc.owner.full_name if getattr(doc.owner, 'full_name', None) else "알수없음",
-            doc.owner.username if getattr(doc.owner, 'username', None) else "N/A",
-            doc.model_used or "없음",
-            doc.char_count or 0,
+            doc.created_at.isoformat() if doc.created_at else "",
+            doc.owner.full_name if doc.owner else "알수없음",
+            doc.model_used,
+            doc.char_count,
             summary_content,
-            original_text
+            "중요" if doc.is_important else "일반",
+            "공개" if doc.is_public else "비공개"
         ])
-
     return output.getvalue()
-    
