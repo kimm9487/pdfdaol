@@ -10,6 +10,9 @@ from .types import OcrResult
 
 
 def _build_reader(lang: str):
+    # 네트워크 체크로 인한 초기화 지연/충돌을 방지합니다.
+    os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
+
     try:
         from paddleocr import PaddleOCR
     except ImportError as exc:
@@ -20,16 +23,24 @@ def _build_reader(lang: str):
         use_gpu = os.getenv("OCR_USE_GPU", "true").lower() in {"1", "true", "yes", "on"}
         preferred_device = os.getenv("PADDLE_DEVICE", "gpu:0" if use_gpu else "cpu")
 
+        # PaddleOCR v3: device 인자 사용
         if use_gpu:
             try:
                 return PaddleOCR(use_angle_cls=True, lang=lang, device=preferred_device)
             except Exception as exc:
-                print(f"⚠️ PaddleOCR GPU 초기화 실패, CPU로 폴백합니다: {exc}")
+                print(f"⚠️ PaddleOCR GPU(device) 초기화 실패, CPU 폴백 시도: {exc}")
 
-        return PaddleOCR(use_angle_cls=True, lang=lang, device="cpu")
+        try:
+            return PaddleOCR(use_angle_cls=True, lang=lang, device="cpu")
+        except TypeError:
+            # PaddleOCR v2: use_gpu 인자 사용
+            if use_gpu:
+                try:
+                    return PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=True)
+                except Exception as exc:
+                    print(f"⚠️ PaddleOCR GPU(use_gpu) 초기화 실패, CPU 폴백 시도: {exc}")
+            return PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=False)
     except ValueError as exc:
-        if "Unknown argument: use_gpu" in str(exc):
-            raise HTTPException(status_code=503, detail="PaddleOCR 버전 호환 오류가 발생했습니다. 서버를 최신 코드로 재배포해주세요.")
         raise HTTPException(status_code=503, detail=f"PaddleOCR 초기화 실패: {exc}")
     except ModuleNotFoundError as exc:
         if str(exc) == "No module named 'paddle'":

@@ -1,6 +1,7 @@
 import React from 'react';
 import './style.css';
 import DatabaseStatus from './DatabaseStatus';
+import ChromaStatus from './ChromaStatus';
 import ActiveSessions from './ActiveSessions';
 import UserManagement from './UserManagement';
 import DocumentList from './DocumentList';
@@ -17,6 +18,7 @@ const AdminDashboard = () => {
 
             <div className="admin-container">
                 <DatabaseStatus />
+                <ChromaStatus />
                 <ActiveSessions />
                 <UserManagement />
                 <DocumentList />

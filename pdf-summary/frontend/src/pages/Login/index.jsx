@@ -11,7 +11,7 @@ const Login = ({ setIsLoggedIn }) => {
   return (
     <div className="login-body">
       <div className="login-container">
-        <h2>PDF Summary</h2>
+        <h2 className="main-title">PDF Summary</h2>
 
         <LoginForm
           userId={loginLogic.userId}
@@ -21,6 +21,9 @@ const Login = ({ setIsLoggedIn }) => {
           error={loginLogic.error}
           handleLogin={loginLogic.handleLogin}
           setShowModal={loginLogic.setShowModal}
+          handleGoogleLogin={loginLogic.handleGoogleLogin}
+          handleNaverLogin={loginLogic.handleNaverLogin}
+          handleKakaoLogin={loginLogic.handleKakaoLogin}
         />
       </div>
 

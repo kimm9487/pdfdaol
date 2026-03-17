@@ -17,31 +17,30 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
       <div className="pagination-numbers">
         {Array.from({ length: totalPages }, (_, i) => {
           const pageNum = i + 1;
+          // 첫 페이지, 마지막 페이지, 그리고 현재 페이지 기준 앞뒤 1페이지씩만 보이도록 설정
           const isVisible =
             pageNum === 1 ||
             pageNum === totalPages ||
             (pageNum >= currentPage - 1 && pageNum <= currentPage + 1);
 
-          const isEllipsis =
-            !isVisible && (i === 1 || i === totalPages - 2);
-
-          if (!isVisible && i !== 0 && i !== 1) {
-            // Render ellipsis only once
-            if (
-              !document.querySelector(
-                `.pagination-dots[data-key="dots-${i > currentPage ? "end" : "start"}"]`,
-              )
-            ) {
+          if (!isVisible) {
+            // 첫 번째 줄임표(...)는 2번 페이지 위치에 한 번만 렌더링
+            if (pageNum === 2) {
               return (
-                <span
-                  key={`dots-${i > currentPage ? "end" : "start"}`}
-                  data-key={`dots-${i > currentPage ? "end" : "start"}`}
-                  className="pagination-dots"
-                >
+                <span key="dots-start" className="pagination-dots">
                   ...
                 </span>
               );
             }
+            // 두 번째 줄임표(...)는 마지막에서 두 번째 페이지 위치에 한 번만 렌더링
+            if (pageNum === totalPages - 1) {
+              return (
+                <span key="dots-end" className="pagination-dots">
+                  ...
+                </span>
+              );
+            }
+            // 나머지 숨겨지는 페이지 번호들은 아무것도 그리지 않음
             return null;
           }
 

@@ -1,3 +1,4 @@
+/* 기존 기본 스타일 유지 */
 .login-body {
   font-family:
     "Pretendard",
@@ -19,30 +20,183 @@
   width: 100%;
   max-width: 400px;
 }
-
-.login-container h2 {
+.main-title {
   text-align: center;
-  color: #333;
   margin-bottom: 30px;
+  font-size: 28px;
+  color: #1e293b;
+}
+/* --- 새로 추가된 UI 스타일 --- */
+
+/* 헤더 영역 */
+.login-header {
+  display: flex;
+  flex-direction: column; /* 요소들을 위아래(세로)로 배치 */
+  align-items: center; /* ⭐️ 가로 기준으로 완벽히 가운데 정렬 */
+  justify-content: center;
+  text-align: center; /* 내부 텍스트 가운데 정렬 */
+  margin-bottom: 40px; /* 아래 로그인 입력창과의 간격 (원하는 대로 조절) */
+  width: 100%; /* 전체 너비를 차지하도록 설정 */
 }
 
-.form-group {
+.profile-icon-container {
+  width: 70px;
+  height: 70px;
+  margin: 0 auto 15px;
+  background-color: #e2e8f0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #cbd5e1;
+}
+
+.profile-icon {
+  font-size: 35px;
+}
+
+.login-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 26px;
+  color: #1e293b;
+  width: 100%; /* 혹시 모를 치우침 방지 */
+}
+.login-header p {
+  margin: 0;
+  font-size: 14px;
+  color: #64748b;
+}
+/* 소셜 로그인 버튼 영역 */
+.social-login-container {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin: 20px 0;
+}
+
+.social-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  padding: 10px;
+  box-sizing: border-box; /* 패딩 포함 크기 유지 */
+}
+
+.social-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* 각 소셜 미디어별 고유 색상 설정 */
+.social-btn.google {
+  border-color: #e2e8f0;
+}
+
+.social-btn.naver {
+  border-color: #03c75a;
+  background-color: #03c75a;
+}
+/* 네이버 텍스트 로고 스타일 */
+.naver-icon {
+  color: white;
+  font-weight: 900;
+  font-size: 22px;
+  font-family: Arial, sans-serif;
+  line-height: 1;
+}
+
+.social-btn.kakao {
+  border-color: #fee500;
+  background-color: #fee500;
+}
+
+.social-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+/* OR 구분선 */
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 25px 0;
+  color: #94a3b8;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.divider-text {
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  font-size: 12px;
+  margin: 0 10px;
+}
+
+/* 아이콘이 포함된 입력창 */
+.form-group.input-with-icon {
+  position: relative;
   margin-bottom: 20px;
 }
 
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  color: #666;
-  font-size: 14px;
+.form-group.input-with-icon .input-icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  color: #94a3b8;
 }
 
-.form-group input {
+.form-group.input-with-icon input {
   width: 100%;
-  padding: 12px;
+  padding: 14px 14px 14px 45px; /* 왼쪽 패딩을 늘려 아이콘 공간 확보 */
   border: 1px solid #ddd;
   border-radius: 6px;
   box-sizing: border-box;
+  font-size: 14px;
+}
+
+.form-group.input-with-icon input:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+/* 기존 로그인 버튼 색상 조정 */
+.login-submit-btn {
+  width: 100%;
+  padding: 14px;
+  background-color: #2563eb; /* 파란색으로 변경 */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.login-submit-btn:hover {
+  background-color: #1d4ed8;
 }
 
 .error-msg {
@@ -52,31 +206,18 @@
   text-align: center;
 }
 
-.login-container button {
-  width: 100%;
-  padding: 14px;
-  background-color: #4a90e2;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-}
-
 .footer-links {
   margin-top: 20px;
   text-align: center;
   font-size: 14px;
-  color: #888;
+  color: #64748b;
 }
 
 .footer-links a {
-  color: #4a90e2;
+  color: #2563eb;
   text-decoration: none;
+  font-weight: bold;
 }
-
-/* 기존 스타일 아래에 추가 */
 
 .find-links {
   margin-top: 15px;
@@ -89,7 +230,7 @@
   color: #333;
 }
 
-/* 모달 배경 */
+/* --- 모달 관련 CSS (기존 코드 유지) --- */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -103,20 +244,14 @@
   z-index: 1000;
 }
 
-/* 모달 박스 */
 .modal-content {
   background: white;
-  padding: 30px 20px; /* 상하 30px, 좌우 40px 여백으로 균형 조절 */
+  padding: 30px 20px;
   border-radius: 12px;
-
-  /* 핵심 수정 부분: 입력창 너비와 비슷하게 맞춤 */
-  width: 350px !important; /* 이메일 입력창 너비에 맞춰 300~320px 권장 */
-  max-width: 90%; /* 모바일 환경 대비 */
-
+  width: 350px !important;
+  max-width: 90%;
   text-align: center;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-
-  /* 내부 요소가 너비 밖으로 나가는 것 방지 */
   box-sizing: border-box;
 }
 
@@ -129,9 +264,9 @@
   box-sizing: border-box;
 }
 .modal-content button {
-  width: 100%; /* 원하는 너비 유지 */
-  display: block; /* 세로로 쌓이도록 블록 요소로 변경 */
-  margin: 10px auto; /* 위아래 간격을 주고, 좌우는 가운데 정렬 */
+  width: 100%;
+  display: block;
+  margin: 10px auto;
   padding: 10px;
   background-color: #4a90e2;
   color: white;

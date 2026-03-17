@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
 
 /**
  * 사용자가 로그인되어 있지 않으면 로그인 페이지로 리디렉션하는 커스텀 훅

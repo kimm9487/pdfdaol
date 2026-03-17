@@ -32,6 +32,8 @@ services:
       DB_USER: root
       DB_PASSWORD: "9487"
       DB_NAME: pdf_summary
+      CHROMA_BASE_URL: http://chroma:8000
+      CHROMA_COLLECTION: documents
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       OCR_USE_GPU: "true"
@@ -47,6 +49,18 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+
+  chroma:
+    image: chromadb/chroma:0.5.5
+    container_name: pdf_chroma
+    restart: unless-stopped
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
 
   worker_ocr:
     build: ./backend
@@ -64,6 +78,8 @@ services:
       DB_USER: root
       DB_PASSWORD: "9487"
       DB_NAME: pdf_summary
+      CHROMA_BASE_URL: http://chroma:8000
+      CHROMA_COLLECTION: documents
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       PYTHONPATH: /app
@@ -88,6 +104,8 @@ services:
       DB_USER: root
       DB_PASSWORD: "9487"
       DB_NAME: pdf_summary
+      CHROMA_BASE_URL: http://chroma:8000
+      CHROMA_COLLECTION: documents
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       PYTHONPATH: /app
@@ -135,3 +153,4 @@ services:
 volumes:
   ollama_data:
   mariadb_data:
+  chroma_data:

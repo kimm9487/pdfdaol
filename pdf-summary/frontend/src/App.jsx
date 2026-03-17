@@ -6,6 +6,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { Toaster } from "react-hot-toast";
 import Header from "./components/Header";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -68,6 +69,13 @@ function App() {
 
   return (
     <Router>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+          style: { fontSize: "16px", padding: "14px 20px", minWidth: "280px" },
+        }}
+      />
       {isLoggedIn && <Header setIsLoggedIn={setIsLoggedIn} />}
       <Routes>
         {/* 공개 라우트 */}

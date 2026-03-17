@@ -198,6 +198,30 @@
 .original-box { background: #f8f8f6; max-height: 400px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; }
 .summary-box { background: #fafaf8; }
 
+.summary-streaming {
+  min-height: 80px;
+}
+
+.typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: var(--accent);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: cursor-blink 0.8s step-end infinite;
+}
+
+.summary-waiting {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .translation-section {
   display: flex;
   justify-content: center;
@@ -337,6 +361,68 @@
 .password-hint {
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+.progress-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 9999;
+  width: 300px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 18px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  animation: toast-in 0.22s ease;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.progress-toast-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.progress-bar-track {
+  height: 6px;
+  background: #e9ecef;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #2c3e50;
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+
+.progress-bar-indeterminate {
+  height: 100%;
+  width: 40%;
+  background: #2c3e50;
+  border-radius: 3px;
+  animation: indeterminate 1.2s linear infinite;
+}
+
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
 }
 
 

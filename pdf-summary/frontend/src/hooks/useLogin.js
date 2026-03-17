@@ -1,7 +1,8 @@
 // src/hooks/useLogin.js
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { buildApiUrl } from "../config/api";
+import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
 
 export const useLogin = (setIsLoggedIn) => {
   const navigate = useNavigate();
@@ -24,6 +25,30 @@ export const useLogin = (setIsLoggedIn) => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // 🚀 [추가] 소셜 로그인 성공 후 리다이렉트 처리
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionToken = params.get("session_token");
+    const userName = params.get("user_name");
+    const userIdParam = params.get("user_id");
+    const userDbId = params.get("user_db_id");
+
+    if (sessionToken) {
+      localStorage.setItem("session_token", sessionToken);
+      localStorage.setItem("userName", decodeURIComponent(userName || ""));
+      localStorage.setItem("userId", userIdParam || "");
+      localStorage.setItem("userDbId", userDbId || "");
+      localStorage.setItem("isLoggedIn", "true");
+
+      if (setIsLoggedIn) setIsLoggedIn(true);
+
+      toast.success(
+        `${decodeURIComponent(userName || "사용자")}님, 소셜 로그인으로 환영합니다!`,
+      );
+      navigate("/"); // 메인 페이지로 이동
+    }
+  }, [navigate, setIsLoggedIn]);
+
   // 모달 초기화
   const resetModalState = () => {
     setShowModal(null);
@@ -37,7 +62,7 @@ export const useLogin = (setIsLoggedIn) => {
     setConfirmPassword("");
   };
 
-  // 🚀 1. 로그인 처리
+  // 🚀 1. 일반 로그인 처리
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -59,7 +84,7 @@ export const useLogin = (setIsLoggedIn) => {
         localStorage.setItem("session_token", data.session_token);
         localStorage.setItem("isLoggedIn", "true");
         if (setIsLoggedIn) setIsLoggedIn(true);
-        alert(`${data.user_name}님 환영합니다!`);
+        toast.success(`${data.user_name}님 환영합니다!`);
         navigate("/");
       } else {
         const errorData = await response.json();
@@ -70,6 +95,21 @@ export const useLogin = (setIsLoggedIn) => {
     }
   };
 
+  // 🚀 1-2. 구글 소셜 로그인 처리 함수
+  const handleGoogleLogin = () => {
+    window.location.href = buildApiUrl("/auth/google/login");
+  };
+
+  // 🟢 [추가됨] 1-3. 네이버 소셜 로그인 처리 함수
+  const handleNaverLogin = () => {
+    // 백엔드 네이버 로그인 API 경로에 맞춰 추후 수정
+    // window.location.href = "http://localhost:8000/api/auth/naver/login";
+    toast.info("네이버 로그인 기능 준비 중입니다.");
+  };
+  const handleKakaoLogin = () => {
+    // window.location.href = "http://localhost:8000/api/auth/kakao/login";
+    toast.info("카카오 로그인 기능 준비 중입니다.");
+  };
   // 📧 2. 인증번호 발송 (아이디/비번 찾기 공통)
   const handleSendCode = async () => {
     const endpoint =
@@ -80,7 +120,7 @@ export const useLogin = (setIsLoggedIn) => {
     const formData = new FormData();
     formData.append("email", email);
     if (showModal === "pw") {
-      if (!findPwUserId) return alert("아이디를 입력해주세요.");
+      if (!findPwUserId) return toast.error("아이디를 입력해주세요.");
       formData.append("user_id", findPwUserId);
     }
 
@@ -90,14 +130,14 @@ export const useLogin = (setIsLoggedIn) => {
         body: formData,
       });
       if (response.ok) {
-        alert("인증번호가 발송되었습니다.");
+        toast.success("인증번호가 발송되었습니다.");
         setIsCodeSent(true);
       } else {
         const data = await response.json();
-        alert(data.detail);
+        toast.error(data.detail);
       }
     } catch (err) {
-      alert("서버 연결 실패");
+      toast.error("서버 연결 실패");
     }
   };
 
@@ -126,10 +166,10 @@ export const useLogin = (setIsLoggedIn) => {
         }
       } else {
         const data = await response.json();
-        alert(data.detail);
+        toast.error(data.detail);
       }
     } catch (err) {
-      alert("서버 연결 실패");
+      toast.error("서버 연결 실패");
     }
   };
 
@@ -144,7 +184,7 @@ export const useLogin = (setIsLoggedIn) => {
   // 🔐 5. 비밀번호 최종 재설정
   const handleResetPassword = async () => {
     if (newPassword !== confirmPassword)
-      return alert("비밀번호가 일치하지 않습니다.");
+      return toast.error("비밀번호가 일치하지 않습니다.");
 
     const formData = new FormData();
     formData.append("email", email);
@@ -157,14 +197,14 @@ export const useLogin = (setIsLoggedIn) => {
         body: formData,
       });
       if (response.ok) {
-        alert("비밀번호가 변경되었습니다. 다시 로그인해주세요.");
+        toast.success("비밀번호가 변경되었습니다. 다시 로그인해주세요.");
         resetModalState();
       } else {
         const data = await response.json();
-        alert(data.detail);
+        toast.error(data.detail);
       }
     } catch (err) {
-      alert("서버 연결 실패");
+      toast.error("서버 연결 실패");
     }
   };
 
@@ -191,6 +231,9 @@ export const useLogin = (setIsLoggedIn) => {
     setConfirmPassword,
     resetModalState,
     handleLogin,
+    handleGoogleLogin, // 🟢 [추가됨] 반환값에 구글 로그인 함수 포함
+    handleNaverLogin, // 🟢 [추가됨] 반환값에 네이버 로그인 함수 포함
+    handleKakaoLogin, // 🟢 [추가됨] 반환값에 카카오 로그인 함수 포함
     handleSendCode,
     handleVerifyCode,
     handleGoToResetPw,

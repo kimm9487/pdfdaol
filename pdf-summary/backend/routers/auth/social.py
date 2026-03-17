@@ -77,29 +77,10 @@ async def google_callback(request: Request, code: str, db: Session = Depends(get
     # 사용자가 없으면 새로 생성
     if not user:
         # 소셜 로그인 사용자는 username을 이메일 앞부분으로 자동 생성
-        username = email.split('@')[0]
-        # 만약 username이 이미 존재하면 고유한 값을 추가
-        counter = 1
-        while db.query(User).filter(User.username == username).first():
-            username = f"{email.split('@')[0]}{counter}"
-            counter += 1
-
-        new_user = User(
-            username=username,
-            email=email,
-            full_name=full_name,
-            provider='google',
-            password_hash=None, # 소셜 로그인이므로 비밀번호 없음
-            is_active=True
-        )
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-        user = new_user
-        
-        # 신규 가입 로그
-        log_admin_activity(db, user.id, "USER_CREATED", "USER", user.id, json.dumps({"provider": "google", "email": email}))
-
+# 구글에서 받은 이메일과 이름을 URL에 담아 프론트엔드 회원가입 창으로 보냅니다.
+        frontend_signup_url = f"http://localhost:5173/register?email={email}&name={full_name}&provider=google"
+        return RedirectResponse(url=frontend_signup_url)
+    
     # --- 세션 생성 (login.py 로직과 동일) ---
     # 기존 활성 세션 종료
     db.query(UserSession).filter(UserSession.user_id == user.id, UserSession.is_active == True).update({"is_active": False})
@@ -127,11 +108,11 @@ async def google_callback(request: Request, code: str, db: Session = Depends(get
 
     # TODO: 성공 후 프론트엔드의 특정 페이지로 리디렉션하면서 토큰을 전달해야 함
     # 예: return RedirectResponse(url=f"http://frontend.url/login/success?token={session_token}")
-    return {
-        "message": "로그인 성공",
-        "user_name": user.full_name,
-        "user_id": user.username,
-        "user_db_id": user.id,
-        "session_token": session_token
-    }
-
+    frontend_redirect_url = (
+        f"http://localhost:5173/login?"  # 프론트엔드 주소에 맞게 포트(5173 등) 확인 필요
+        f"session_token={session_token}&"
+        f"user_name={user.full_name}&"
+        f"user_id={user.username}&"
+        f"user_db_id={user.id}"
+    )
+    return RedirectResponse(url=frontend_redirect_url)

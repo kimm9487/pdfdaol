@@ -75,13 +75,15 @@ def register(
     user_id: str = Form(...), 
     user_pw: str = Form(...), 
     user_name: str = Form(...), 
-    user_email: str = Form(...),  # 이제 이메일은 필수입니다!
+    user_email: str = Form(...),
+    provider: str = Form("local"),  # 소셜 로그인 제공자 (예: "google", "kakao", "naver")
     db: Session = Depends(get_db)
 ):
     # 🚨 가장 중요: 이메일 인증을 마친 유저인지 확인
-    record = signup_verifications.get(user_email)
-    if not record or not record.get("is_verified"):
-        raise HTTPException(status_code=400, detail="이메일 인증을 먼저 진행해주세요.")
+    if provider == "local":  # 일반 회원가입인 경우에만 이메일 인증 체크
+        record = signup_verifications.get(user_email)
+        if not record or not record.get("is_verified"):
+            raise HTTPException(status_code=400, detail="이메일 인증을 먼저 진행해주세요.")
 
     existing = db.query(User).filter(User.username == user_id).first()
     if existing:
@@ -91,19 +93,21 @@ def register(
         username=user_id, 
         password_hash=hash_password(user_pw), 
         full_name=user_name, 
-        email=user_email
+        email=user_email,
+        provider=provider  # 소셜 로그인 제공자 정보 저장
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     
     # 가입 성공 후, 임시 저장소에서 기록 삭제 (메모리 정리)
-    del signup_verifications[user_email]
+    if provider == "local" and user_email in signup_verifications:
+        del signup_verifications[user_email]
     
     log_admin_activity(
         db=db, admin_user_id=new_user.id, action="USER_REGISTERED",
         target_type="USER", target_id=new_user.id,
-        details=json.dumps({"username": user_id, "email": user_email}),
+        details=json.dumps({"username": user_id, "email": user_email, "provider": provider}),
         ip_address=request.client.host
     )
     

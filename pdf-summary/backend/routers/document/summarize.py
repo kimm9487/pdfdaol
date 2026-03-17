@@ -1,15 +1,22 @@
+import asyncio
+import io
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 import json
 import time
 import datetime
 import base64
+import os
 from pydantic import BaseModel
+from typing import Optional
 
 from celery.result import AsyncResult
+import PyPDF2
 
 from services.pdf_service import extract_text_from_pdf
-from services.ai_service import summarize_text, summarize_with_instruction, categorize_document
+from services.ai_service import summarize_text, summarize_text_stream, categorize_document  # [변경] summarize_text_stream 추가
+from services.ocr.factory import extract_with_model_sync  # [추가] OCR 동기 실행용 (run_in_executor)
 from database import get_db, PdfDocument, can_user_access_document, log_admin_activity
 from celery_app import celery_app
 from tasks.document_tasks import extract_document_task, summarize_document_task
@@ -21,6 +28,9 @@ class ChatSummarizeRequest(BaseModel):
     document_text: str
     instruction: str
     model: str = "gemma3:latest"
+    user_id: Optional[int] = None
+    use_rag: bool = True
+    use_lora: bool = False
 
 
 @summarize_router.post("/chat-summarize")
@@ -34,10 +44,20 @@ async def chat_summarize(request: ChatSummarizeRequest):
         text=text,
         instruction=request.instruction,
         model=request.model,
+        user_scope=f"user_{request.user_id}" if request.user_id else "shared",
+        use_rag=request.use_rag,
+        use_lora=request.use_lora,
     )
+
+    model_used = request.model
+    if request.use_lora:
+        model_used = os.getenv("LORA_MODEL_NAME", model_used)
+
     return {
         "answer": answer,
-        "model_used": request.model,
+        "model_used": model_used,
+        "rag_enabled": request.use_rag,
+        "lora_enabled": request.use_lora,
     }
 
 
@@ -241,17 +261,231 @@ async def extract_pdf(
     is_public: bool = Form(default=True),
     db: Session = Depends(get_db),
 ):
-    """(Step 1) Extracts text from a PDF file and creates a document record."""
-    return await _build_extraction_document(
-        request=request,
-        file=file,
-        user_id=user_id,
-        ocr_model=ocr_model,
-        is_important=is_important,
-        password=password,
-        is_public=is_public,
-        db=db,
+    """(Step 1) PDF 텍스트 추출 진행률과 결과를 SSE로 실시간 전송합니다."""
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=422, detail="파일이 비어있습니다.")
+
+    filename = file.filename or "uploaded_file"
+    ip_address = request.client.host if request.client else "unknown"
+
+    def _sse(data: dict) -> str:
+        return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+    async def generate():
+        model = (ocr_model or "pypdf2").lower()
+        start_time = time.time()
+
+        try:
+            if model == "pypdf2":
+                try:
+                    pdf_reader = PyPDF2.PdfReader(io.BytesIO(contents))
+                except Exception as exc:
+                    yield _sse({"type": "error", "detail": f"PDF 형식 오류: {exc}"})
+                    return
+
+                total_pages = len(pdf_reader.pages)
+                if total_pages == 0:
+                    yield _sse({"type": "error", "detail": "PDF에 페이지가 없습니다."})
+                    return
+
+                yield _sse({"type": "start", "total_pages": total_pages, "ocr_mode": False})
+
+                parts = []
+                successful_pages = 0
+                for page_num, page in enumerate(pdf_reader.pages, start=1):
+                    try:
+                        page_text = page.extract_text()
+                        if page_text and page_text.strip():
+                            parts.append(f"[페이지 {page_num}]\n{page_text}")
+                            successful_pages += 1
+                    except Exception:
+                        pass
+
+                    yield _sse({"type": "page", "page": page_num, "total": total_pages})
+                    await asyncio.sleep(0)
+
+                merged = "\n\n".join(parts).strip()
+                if not merged:
+                    yield _sse({
+                        "type": "error",
+                        "detail": "텍스트 추출 실패: 이미지 기반 문서일 수 있습니다. OCR 모델을 선택해 주세요.",
+                    })
+                    return
+
+                extraction_result = {
+                    "text": merged,
+                    "total_pages": total_pages,
+                    "successful_pages": successful_pages,
+                    "processing_time": time.time() - start_time,
+                    "char_count": len(merged),
+                    "ocr_model": "pypdf2",
+                }
+            else:
+                yield _sse({"type": "start", "total_pages": 0, "ocr_mode": True})
+
+                loop = asyncio.get_running_loop()
+                queue = asyncio.Queue()
+
+                def on_page(current: int, total: int):
+                    asyncio.run_coroutine_threadsafe(
+                        queue.put({"type": "ocr_progress", "page": current, "total": total}),
+                        loop,
+                    )
+
+                future = loop.run_in_executor(
+                    None,
+                    lambda: extract_with_model_sync(contents, filename, model, on_page=on_page),
+                )
+
+                while not future.done():
+                    try:
+                        event = queue.get_nowait()
+                        yield _sse(event)
+                    except asyncio.QueueEmpty:
+                        await asyncio.sleep(0.08)
+
+                while not queue.empty():
+                    try:
+                        yield _sse(queue.get_nowait())
+                    except asyncio.QueueEmpty:
+                        break
+
+                try:
+                    extraction_result = future.result()
+                except Exception as exc:
+                    detail = getattr(exc, "detail", str(exc))
+                    yield _sse({"type": "error", "detail": detail})
+                    return
+
+            stored_password = None
+            if is_important:
+                password_value = str(password or "")
+                if len(password_value) != 4 or not password_value.isdigit():
+                    yield _sse({"type": "error", "detail": "중요문서는 4자리 숫자 비밀번호가 필요합니다."})
+                    return
+                stored_password = password_value
+
+            doc = PdfDocument(
+                user_id=user_id,
+                filename=filename,
+                extracted_text=extraction_result["text"],
+                summary=None,
+                ocr_model=extraction_result.get("ocr_model"),
+                model_used=None,
+                char_count=len(extraction_result["text"]),
+                file_size_bytes=len(contents),
+                total_pages=extraction_result["total_pages"],
+                successful_pages=extraction_result["successful_pages"],
+                extraction_time_seconds=round(extraction_result["processing_time"], 3),
+                summary_time_seconds=None,
+                is_important=is_important,
+                password=stored_password,
+                is_public=is_public,
+            )
+            db.add(doc)
+            db.commit()
+            db.refresh(doc)
+
+            try:
+                doc.category = await categorize_document(title=filename)
+            except Exception:
+                doc.category = "기타"
+            db.commit()
+
+            try:
+                log_admin_activity(
+                    db=db,
+                    admin_user_id=user_id,
+                    action="DOCUMENT_UPLOADED",
+                    target_type="DOCUMENT",
+                    target_id=doc.id,
+                    details=json.dumps({
+                        "filename": filename,
+                        "file_size_bytes": len(contents),
+                        "ocr_model": extraction_result.get("ocr_model"),
+                        "category": doc.category,
+                        "is_important": is_important,
+                        "is_public": is_public,
+                    }),
+                    ip_address=ip_address,
+                )
+            except Exception:
+                pass
+
+            text = extraction_result["text"]
+            chunk_size = 300
+            chunks = [text[index:index + chunk_size] for index in range(0, len(text), chunk_size)]
+
+            yield _sse({"type": "chunk_start", "total_chunks": len(chunks)})
+            for index, chunk in enumerate(chunks, start=1):
+                yield _sse({"type": "chunk", "text": chunk, "index": index, "total": len(chunks)})
+                await asyncio.sleep(0)
+
+            yield _sse({
+                "type": "done",
+                "id": doc.id,
+                "filename": filename,
+                "original_length": len(text),
+                "extracted_text": text,
+                "summary": None,
+                "model_used": None,
+                "ocr_model": extraction_result.get("ocr_model"),
+                "category": doc.category,
+                "created_at": datetime.datetime.now().isoformat(),
+                "is_important": doc.is_important,
+                "password": doc.password,
+                "is_public": doc.is_public,
+                "timing": {
+                    "extraction_time": f"{extraction_result['processing_time']:.2f}초",
+                    "summary_time": None,
+                    "total_time": f"{extraction_result['processing_time']:.2f}초",
+                },
+                "extraction_info": {
+                    "total_pages": extraction_result["total_pages"],
+                    "successful_pages": extraction_result["successful_pages"],
+                    "char_count": extraction_result["char_count"],
+                    "file_size_mb": f"{len(contents) / (1024 * 1024):.2f}MB",
+                },
+            })
+        except Exception as exc:
+            detail = getattr(exc, "detail", str(exc))
+            yield _sse({"type": "error", "detail": detail})
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
+
+
+@summarize_router.post("/extract-chat")
+async def extract_pdf_for_chat(
+    file: UploadFile = File(...),
+    ocr_model: str = Form(default="pypdf2"),
+):
+    """(Chat only) Extracts text without saving any document to DB."""
+    extraction_result = await extract_text_from_pdf(file, ocr_model=ocr_model)
+    extracted_text = extraction_result["text"]
+    extraction_time = extraction_result["processing_time"]
+
+    return {
+        "filename": file.filename,
+        "extracted_text": extracted_text,
+        "ocr_model": extraction_result.get("ocr_model"),
+        "timing": {
+            "extraction_time": f"{extraction_time:.2f}초",
+        },
+        "extraction_info": {
+            "total_pages": extraction_result.get("total_pages", 0),
+            "successful_pages": extraction_result.get("successful_pages", 0),
+            "char_count": extraction_result.get("char_count", len(extracted_text)),
+        },
+    }
 
 
 @summarize_router.post("/summarize-document")
@@ -262,7 +496,7 @@ async def summarize_extracted_document(
     model: str = Form(default="gemma3:latest"),
     db: Session = Depends(get_db),
 ):
-    """(Step 2) Summarizes the extracted text of an existing document."""
+    """(Step 2) 추출된 문서를 요약하며 토큰을 SSE로 실시간 전송합니다."""
     if not can_user_access_document(db, user_id, document_id):
         raise HTTPException(status_code=403, detail="이 문서에 접근할 권한이 없습니다.")
 
@@ -272,43 +506,70 @@ async def summarize_extracted_document(
     if not doc.extracted_text:
         raise HTTPException(status_code=400, detail="먼저 텍스트를 추출해주세요.")
 
-    summary_start = time.time()
-    summary = await summarize_text(doc.extracted_text, model=model)
-    summary_time = time.time() - summary_start
+    ip_address = request.client.host if request.client else "unknown"
 
-    doc.summary = summary
-    doc.model_used = model
-    doc.summary_time_seconds = round(summary_time, 3)
-    doc.updated_at = datetime.datetime.now()
-    db.commit()
-    db.refresh(doc)
+    def _sse(data: dict) -> str:
+        return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
-    log_admin_activity(
-        db=db,
-        admin_user_id=user_id,
-        action="DOCUMENT_SUMMARIZED",
-        target_type="DOCUMENT",
-        target_id=doc.id,
-        details=json.dumps({
+    async def generate():
+        collected = []
+        summary_start = time.time()
+
+        try:
+            async for token in summarize_text_stream(doc.extracted_text, model=model):
+                collected.append(token)
+                yield _sse({"type": "token", "text": token})
+        except Exception as exc:
+            detail = getattr(exc, "detail", str(exc))
+            yield _sse({"type": "error", "detail": detail})
+            return
+
+        full_summary = "".join(collected)
+        summary_time = time.time() - summary_start
+
+        doc.summary = full_summary
+        doc.model_used = model
+        doc.summary_time_seconds = round(summary_time, 3)
+        doc.updated_at = datetime.datetime.now()
+        db.commit()
+        db.refresh(doc)
+
+        log_admin_activity(
+            db=db,
+            admin_user_id=user_id,
+            action="DOCUMENT_SUMMARIZED",
+            target_type="DOCUMENT",
+            target_id=doc.id,
+            details=json.dumps({
+                "filename": doc.filename,
+                "llm_model": model,
+                "summary_length": len(full_summary),
+            }),
+            ip_address=ip_address,
+        )
+
+        yield _sse({
+            "type": "done",
+            "id": doc.id,
+            "document_id": doc.id,
             "filename": doc.filename,
-            "llm_model": model,
-            "summary_length": len(summary),
-        }),
-        ip_address=request.client.host,
-    )
+            "summary": full_summary,
+            "ocr_model": doc.ocr_model,
+            "model_used": doc.model_used,
+            "summary_time": f"{summary_time:.2f}초",
+            "created_at": doc.created_at.isoformat() if doc.created_at else None,
+            "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+        })
 
-    return {
-        "id": doc.id,
-        "document_id": doc.id,
-        "filename": doc.filename,
-        "extracted_text": doc.extracted_text,
-        "summary": doc.summary,
-        "ocr_model": doc.ocr_model,
-        "model_used": doc.model_used,
-        "summary_time": f"{summary_time:.2f}초",
-        "created_at": doc.created_at.isoformat() if doc.created_at else None,
-        "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
-    }
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @summarize_router.post("/summarize")
@@ -335,14 +596,18 @@ async def summarize_pdf_legacy(
         db=db,
     )
 
-    summarize_result = await summarize_extracted_document(
-        request=request,
-        document_id=extracted["id"],
-        user_id=user_id,
-        model=model,
-        db=db,
-    )
-    extracted["summary"] = summarize_result["summary"]
-    extracted["model_used"] = summarize_result["model_used"]
-    extracted["timing"]["summary_time"] = summarize_result["summary_time"]
+    doc = db.query(PdfDocument).filter(PdfDocument.id == extracted["id"]).first()
+    summary_start = time.time()
+    summary = await summarize_text(doc.extracted_text, model=model)
+    summary_time = time.time() - summary_start
+
+    doc.summary = summary
+    doc.model_used = model
+    doc.summary_time_seconds = round(summary_time, 3)
+    doc.updated_at = datetime.datetime.now()
+    db.commit()
+
+    extracted["summary"] = summary
+    extracted["model_used"] = model
+    extracted["timing"]["summary_time"] = f"{summary_time:.2f}초"
     return extracted

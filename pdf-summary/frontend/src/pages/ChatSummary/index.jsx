@@ -23,6 +23,8 @@ const ChatSummary = () => {
   const [input, setInput] = useState("");
   const [loadingExtract, setLoadingExtract] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [useRag, setUseRag] = useState(true);
+  const [useLora, setUseLora] = useState(false);
 
   useEffect(() => {
     const loadModels = async () => {
@@ -70,25 +72,15 @@ const ChatSummary = () => {
       return;
     }
 
-    const userDbId = localStorage.getItem("userDbId");
-    if (!userDbId) {
-      appendMessage("assistant", "로그인 정보가 없습니다. 다시 로그인해 주세요.");
-      return;
-    }
-
     setLoadingExtract(true);
     appendMessage("assistant", "문서 텍스트를 추출하고 있습니다. 잠시만 기다려 주세요...");
 
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("user_id", String(parseInt(userDbId, 10) || 0));
       formData.append("ocr_model", selectedOcrModel);
-      formData.append("is_important", "false");
-      formData.append("password", "");
-      formData.append("is_public", "true");
 
-      const response = await fetch(`${API_BASE}/documents/extract`, {
+      const response = await fetch(`${API_BASE}/documents/extract-chat`, {
         method: "POST",
         body: formData,
       });
@@ -114,6 +106,7 @@ const ChatSummary = () => {
   const handleSend = async () => {
     const instruction = input.trim();
     if (!instruction) return;
+    const userDbId = localStorage.getItem("userDbId");
 
     appendMessage("user", instruction);
     setInput("");
@@ -134,6 +127,9 @@ const ChatSummary = () => {
           document_text: extractedText,
           instruction,
           model: selectedModel,
+          user_id: userDbId ? parseInt(userDbId, 10) : null,
+          use_rag: useRag,
+          use_lora: useLora,
         }),
       });
 
@@ -191,6 +187,24 @@ const ChatSummary = () => {
             </option>
           ))}
         </select>
+
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={useRag}
+            onChange={(e) => setUseRag(e.target.checked)}
+          />
+          <span>RAG 검색 문맥 사용</span>
+        </label>
+
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={useLora}
+            onChange={(e) => setUseLora(e.target.checked)}
+          />
+          <span>LoRA 파인튜닝 모델 사용</span>
+        </label>
 
         <button type="button" className="primary-btn" onClick={handleExtract} disabled={loadingExtract}>
           {loadingExtract ? "추출 중..." : "문서 텍스트 추출"}

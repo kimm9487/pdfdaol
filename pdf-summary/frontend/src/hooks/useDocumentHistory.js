@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { buildApiUrl } from "../config/api";
+import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
 
 export const useDocumentHistory = () => {
   const [userInfo, setUserInfo] = useState({
@@ -83,11 +84,11 @@ export const useDocumentHistory = () => {
       if (response.ok) {
         return await response.json();
       } else {
-        alert("문서를 불러올 수 없습니다.");
+        toast.error("문서를 불러올 수 없습니다.");
         return null;
       }
     } catch (error) {
-      alert("문서를 불러올 수 없습니다.");
+      toast.error("문서를 불러올 수 없습니다.");
       return null;
     }
   };
@@ -123,14 +124,14 @@ export const useDocumentHistory = () => {
               : doc
           )
         );
-        alert("문서 정보가 성공적으로 수정되었습니다.");
+        toast.success("문서 정보가 성공적으로 수정되었습니다.");
         return true;
       } else {
-        alert("문서 수정 실패");
+        toast.error("문서 수정 실패");
         return false;
       }
     } catch (error) {
-      alert("오류가 발생했습니다.");
+      toast.error("오류가 발생했습니다.");
       return false;
     }
   };
@@ -146,14 +147,14 @@ export const useDocumentHistory = () => {
       });
       if (response.ok) {
         setHistory((prev) => prev.filter((doc) => doc.id !== docId));
-        alert("문서가 삭제되었습니다.");
+        toast.success("문서가 삭제되었습니다.");
         return true;
       } else {
-        alert("문서 삭제 실패");
+        toast.error("문서 삭제 실패");
         return false;
       }
     } catch (error) {
-      alert("오류가 발생했습니다.");
+      toast.error("오류가 발생했습니다.");
       return false;
     }
   };
@@ -197,11 +198,11 @@ export const useDocumentHistory = () => {
           method: "DELETE",
         });
         if (response.ok) {
-          alert("회원 탈퇴가 완료되었습니다.");
+          toast.success("회원 탈퇴가 완료되었습니다.");
           localStorage.clear();
           window.location.href = "/";
         } else {
-          alert("탈퇴 처리 중 오류가 발생했습니다.");
+          toast.error("탈퇴 처리 중 오류가 발생했습니다.");
         }
       } catch (error) {}
     }

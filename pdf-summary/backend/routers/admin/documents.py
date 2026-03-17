@@ -41,6 +41,7 @@ def get_admin_documents(
                     "created_at": doc.created_at.isoformat() if doc.created_at else None,
                     "char_count": doc.char_count,
                     "model_used": doc.model_used,
+                    "ocr_model": doc.ocr_model,  # [추가] OCR 모델 포함 (프론트 모델 폴백용)
                     "translation_model": doc.translation_model,
                     "has_original_translation": bool(doc.original_translation),
                     "has_summary_translation": bool(doc.summary_translation),

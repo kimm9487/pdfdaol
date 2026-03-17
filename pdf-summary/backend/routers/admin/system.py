@@ -2,10 +2,43 @@ from fastapi import APIRouter, Depends, HTTPException, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import datetime
+import os
+from typing import Optional
+from urllib.parse import urlparse
 
 from database import get_db, PdfDocument, User
 
+try:
+    import chromadb  # type: ignore
+except Exception:
+    chromadb = None
+
 system_router = APIRouter(tags=["Admin-System"])
+
+
+def _assert_admin(db: Session, admin_user_id: Optional[int]) -> None:
+    if admin_user_id is None:
+        return
+
+    admin_user = db.query(User).filter(User.id == admin_user_id).first()
+    if not admin_user or admin_user.role != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 이용 가능합니다.")
+
+
+def _build_chroma_client():
+    if chromadb is None:
+        raise HTTPException(status_code=500, detail="chromadb 패키지가 설치되어 있지 않습니다.")
+
+    base_url = os.getenv("CHROMA_BASE_URL", "http://chroma:8000")
+    parsed = urlparse(base_url)
+    host = parsed.hostname or "chroma"
+    if parsed.port:
+        port = parsed.port
+    else:
+        port = 443 if parsed.scheme == "https" else 8000
+    ssl = parsed.scheme == "https"
+
+    return chromadb.HttpClient(host=host, port=port, ssl=ssl), base_url
 
 @system_router.get("/database-status")
 async def get_database_status(db: Session = Depends(get_db)):
@@ -87,6 +120,48 @@ async def get_database_status(db: Session = Depends(get_db)):
                 "message": str(e)
             }
         )
+
+
+@system_router.get("/chroma-status")
+async def get_chroma_status(
+    admin_user_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """Chroma VectorDB 상태와 컬렉션 통계를 반환합니다."""
+    _assert_admin(db, admin_user_id)
+
+    try:
+        client, base_url = _build_chroma_client()
+        heartbeat = client.heartbeat()
+        collections = client.list_collections()
+
+        items = []
+        for col in collections:
+            count = 0
+            try:
+                count = col.count()
+            except Exception:
+                count = -1
+
+            items.append(
+                {
+                    "name": col.name,
+                    "count": count,
+                }
+            )
+
+        return {
+            "connected": True,
+            "base_url": base_url,
+            "heartbeat": heartbeat,
+            "collection_count": len(items),
+            "collections": sorted(items, key=lambda x: x["name"]),
+            "timestamp": datetime.datetime.now().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chroma 상태 조회 실패: {str(e)}")
 
 @system_router.post("/current-username")
 async def get_current_username(
