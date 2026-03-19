@@ -26,10 +26,6 @@ try:
 except Exception as e:
     print(f"⚠️ 데이터베이스 생성 중 에러 (테이블이 이미 존재할 수 있음): {e}")
 
-# --- 2. FastAPI 앱 설정 ---
-app = FastAPI(title="PDF 요약 시스템 API")
-
-
 # --- 전역 HTTPException 핸들러 (모든 4xx/5xx 자동 디스코드 알림) ---
 @app.exception_handler(HTTPException)
 async def http_exception_discord_handler(request: Request, exc: HTTPException):

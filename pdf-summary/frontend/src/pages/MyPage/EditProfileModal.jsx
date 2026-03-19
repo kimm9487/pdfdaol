@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { buildApiUrl } from "../../config/api";
-import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
+import toast from "react-hot-toast";
 
 const EditProfileModal = ({ show, onClose, userInfo, onProfileUpdate }) => {
   const [editEmail, setEditEmail] = useState(userInfo.email);
@@ -13,6 +13,13 @@ const EditProfileModal = ({ show, onClose, userInfo, onProfileUpdate }) => {
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [emailTimeLeft, setEmailTimeLeft] = useState(300);
 
+  // 소셜 계정 여부 확인 (local이 아니면 소셜 계정으로 간주)
+  const isSocialAccount = userInfo?.provider && userInfo.provider.toLowerCase() !== "local";
+  useEffect(() => {
+    if (show) {
+      console.log("현재 모달이 받은 userInfo 정보:", userInfo);
+    }
+  }, [show, userInfo]);
   useEffect(() => {
     let timer;
     if (isEmailCodeSent && !isEmailVerified && emailTimeLeft > 0) {
@@ -31,6 +38,7 @@ const EditProfileModal = ({ show, onClose, userInfo, onProfileUpdate }) => {
   };
 
   const handleSendEmailCode = async () => {
+    if (isSocialAccount) return; // 소셜 계정은 실행 방지
     if (!editEmail) {
       alert("새 이메일을 입력해주세요.");
       return;
@@ -102,7 +110,9 @@ const EditProfileModal = ({ show, onClose, userInfo, onProfileUpdate }) => {
     }
 
     const isEmailChanged = editEmail && editEmail !== userInfo.email;
-    if (isEmailChanged && !isEmailVerified) {
+    
+    // 소셜 계정이 아닌 경우에만 이메일 인증 체크
+    if (!isSocialAccount && isEmailChanged && !isEmailVerified) {
       alert("새 이메일 인증을 완료해주세요.");
       return;
     }
@@ -113,7 +123,9 @@ const EditProfileModal = ({ show, onClose, userInfo, onProfileUpdate }) => {
       const userDbId = localStorage.getItem("userDbId");
       const formData = new FormData();
 
-      if (isEmailChanged) formData.append("email", editEmail);
+      // 소셜 계정이 아닐 때만 수정한 이메일 전송
+      if (!isSocialAccount && isEmailChanged) formData.append("email", editEmail);
+      
       if (editPassword) formData.append("new_password", editPassword);
       formData.append("current_password", currentPassword);
 
@@ -124,7 +136,7 @@ const EditProfileModal = ({ show, onClose, userInfo, onProfileUpdate }) => {
 
       if (response.ok) {
         const updatedProfile = await response.json();
-        onProfileUpdate(updatedProfile); // Notify parent component
+        onProfileUpdate(updatedProfile);
         alert("프로필이 성공적으로 수정되었습니다.");
         handleClose();
       } else {
@@ -139,6 +151,7 @@ const EditProfileModal = ({ show, onClose, userInfo, onProfileUpdate }) => {
   };
 
   const handleEmailChange = (e) => {
+    if (isSocialAccount) return;
     setEditEmail(e.target.value);
     setIsEmailCodeSent(false);
     setIsEmailVerified(false);
@@ -178,10 +191,13 @@ const EditProfileModal = ({ show, onClose, userInfo, onProfileUpdate }) => {
                 type="email"
                 value={editEmail}
                 onChange={handleEmailChange}
-                placeholder="변경할 이메일을 입력하세요"
-                disabled={isEmailVerified}
+                placeholder={isSocialAccount ? "" : "변경할 이메일을 입력하세요"}
+                // 인증 완료되었거나 '소셜 계정'인 경우 비활성화
+                disabled={isEmailVerified || isSocialAccount}
+                style={{ backgroundColor: isSocialAccount ? "#f5f5f5" : "white" }}
               />
-              {isEmailChanged && (
+              {/* 소셜 계정이 아닐 때만 인증 버튼 노출 */}
+              {!isSocialAccount && isEmailChanged && (
                 <button
                   type="button"
                   className={`btn-small ${isEmailVerified ? "btn-success" : ""}`}
@@ -198,9 +214,16 @@ const EditProfileModal = ({ show, onClose, userInfo, onProfileUpdate }) => {
                 </button>
               )}
             </div>
+            {/* 소셜 계정 안내 문구 추가 */}
+            {isSocialAccount && (
+              <p style={{ color: "#e74c3c", fontSize: "12px", marginTop: "8px", fontWeight: "500" }}>
+                소셜계정은 이메일을 수정할 수 없습니다.
+              </p>
+            )}
           </div>
 
-          {isEmailChanged && isEmailCodeSent && !isEmailVerified && (
+          {/* 이하 생략 (인증번호 입력 및 비밀번호 필드 등 기존과 동일) */}
+          {isEmailChanged && isEmailCodeSent && !isEmailVerified && !isSocialAccount && (
             <div
               className="form-group"
               style={{
