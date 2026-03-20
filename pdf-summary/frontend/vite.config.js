@@ -32,4 +32,5 @@ const backendTarget = process.env.VITE_BACKEND_TARGET || "http://localhost:8000"
         }
       : undefined,
   };
+  
 });

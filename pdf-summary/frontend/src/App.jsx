@@ -16,7 +16,8 @@ import ChatSummary from "./pages/ChatSummary";
 import MyPage from "./pages/MyPage"; // 이재윤 MyPage 컴포넌트 분리
 import AdminDashboard from "./pages/AdminDashboard";
 import UserList from "./pages/UserList"; // 정재훈 추가 (2026-02-27): 전체 요약/사용자 목록 조회 페이지 (관리자 전용)
-import WebSocketChatWindow from "./components/WebSocketChatWindow";
+import WebSocketChat from "./components/WebSocketChat";
+
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
@@ -77,6 +78,10 @@ function App() {
           style: { fontSize: "16px", padding: "14px 20px", minWidth: "280px" },
         }}
       />
+
+      {/* 실시간 채팅 위젯 */}
+      <WebSocketChat />
+
       {isLoggedIn && <Header setIsLoggedIn={setIsLoggedIn} />}
       <Routes>
         {/* 공개 라우트 */}
@@ -120,10 +125,6 @@ function App() {
         <Route
           path="/admin"
           element={<ProtectedRoute component={AdminDashboard} />}
-        />
-        <Route
-          path="/websocketchat"
-          element={<ProtectedRoute component={WebSocketChatWindow} />}
         />
         {/* 기타 경로 처리 */}
         <Route

@@ -42,11 +42,11 @@ export default function MessageBubble({ message }) {
       )}
 
       {/* 연속 메시지면 아바타 공간만큼 패딩 유지 */}
-      {!isMe && !showSenderInfo && (
-        <div className="w-9 flex-shrink-0" />
-      )}
+      {!isMe && !showSenderInfo && <div className="w-9 flex-shrink-0" />}
 
-      <div className={`flex flex-col max-w-[70%] ${isMe ? "items-end" : "items-start"}`}>
+      <div
+        className={`flex flex-col max-w-[70%] ${isMe ? "items-end" : "items-start"}`}
+      >
         {/* 상대방일 때만 이름 표시 (연속 메시지면 숨김) */}
         {!isMe && showSenderInfo && (
           <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 px-1">
@@ -58,33 +58,19 @@ export default function MessageBubble({ message }) {
         <div
           className={`
             relative px-4 py-2.5 rounded-2xl text-sm break-words leading-relaxed
-            ${isMe
-              ? "bg-[#fee500] text-black rounded-br-none"          // 카카오톡 노란색 느낌
-              : "bg-white dark:bg-gray-700 text-black dark:text-white rounded-bl-none shadow-sm"}
+            ${
+              isMe
+                ? "bg-[#fee500] text-black rounded-br-none" // 카카오톡 노란색 느낌
+                : "bg-white dark:bg-gray-700 text-black dark:text-white rounded-bl-none shadow-sm"
+            }
           `}
         >
           {content}
         </div>
 
         {/* 시간 (내 메시지는 오른쪽, 상대는 왼쪽 아래) */}
-        <div className="text-[10px] text-gray-400 mt-0.5 px-1">
-          {timeStr}
-        </div>
+        <div className="text-[10px] text-gray-400 mt-0.5 px-1">{timeStr}</div>
       </div>
-
-      {/* 내 메시지일 때: 오른쪽에 아바타 */}
-      {isMe && showSenderInfo && (
-        <div className="flex-shrink-0">
-          <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium">
-            ME
-          </div>
-        </div>
-      )}
-
-      {/* 연속 메시지면 내 쪽도 공간 확보 */}
-      {isMe && !showSenderInfo && (
-        <div className="w-9 flex-shrink-0" />
-      )}
     </div>
   );
 }

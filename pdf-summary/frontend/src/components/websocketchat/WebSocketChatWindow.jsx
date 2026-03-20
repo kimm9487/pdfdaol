@@ -1,16 +1,16 @@
 // src/components/WebSocketChatWindow.jsx
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
-import ChatHeader from "./websocketchat/WebSocketChatHeader";
-import MessageList from "./websocketchat/WebSocketMessageList";
-import ChatInput from "./websocketchat/WebSocketChatInput";
+import ChatHeader from "./WebSocketChatHeader";
+import MessageList from "./WebSocketMessageList";
+import ChatInput from "./WebSocketChatInput";
 
 // ★★★ 세션별 localStorage 키 생성 (가장 중요한 변경점)
 const getChatStorageKey = () => {
   const userId = localStorage.getItem("userId");
   const sessionToken = localStorage.getItem("session_token");
   if (!userId || !sessionToken) return null;
-  
+
   // session_token으로 세션 구분 → 새 로그인 시 키가 달라져서 과거 기록 안 불러옴
   return `chat_messages_user_${userId}_sess_${sessionToken.slice(-12)}`;
 };
@@ -71,11 +71,11 @@ export default function WebSocketChatWindow() {
 
     console.log("[Socket] 연결 시도 → username:", userId);
 
-    const backendUrl = import.meta.env.MODE === "development"
-      ? ""
-      : "https://your-production-domain.com";
+    // const backendUrl = import.meta.env.MODE === "development"
+    //   ? ""
+    //   : "https://your-production-domain.com";
 
-    const newSocket = io(backendUrl, {
+    const newSocket = io({
       path: "/socket.io",
       transports: ["websocket", "polling"],
       reconnection: true,
@@ -147,7 +147,8 @@ export default function WebSocketChatWindow() {
 
       {onlineUsers.length > 0 && (
         <div className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-sm border-b">
-          온라인 ({onlineUsers.length}명): {onlineUsers.map((u) => u.name).join(", ")}
+          온라인 ({onlineUsers.length}명):{" "}
+          {onlineUsers.map((u) => u.name).join(", ")}
         </div>
       )}
 

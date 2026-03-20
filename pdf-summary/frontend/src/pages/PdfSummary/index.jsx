@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { usePdfSummary } from "../../hooks/usePdfSummary";
 import "./style.css";
 
@@ -8,10 +8,6 @@ import ModelSelection from "./ModelSelection";
 import SecurityOptions from "./SecurityOptions";
 import StatusDisplay from "./StatusDisplay";
 import Results from "./Results";
-
-// 채팅 관련 import 추가
-import WebSocketChatWindow from "../../components/WebSocketChatWindow";
-import "../../components/websocketchat/WebSocketChat.css";
 
 const PdfSummary = () => {
   const {
@@ -50,8 +46,6 @@ const PdfSummary = () => {
     handleDownload,
   } = usePdfSummary();
 
-  // 채팅 열림/닫힘 상태 추가
-  const [showChat, setShowChat] = useState(false);
 
   const progressPercent =
     extractionProgress.total > 0
@@ -135,27 +129,6 @@ const PdfSummary = () => {
             ) : (
               <div className="progress-bar-indeterminate" />
             )}
-          </div>
-        </div>
-      )}
-      
-      {/* ← 여기로 Floating Chat 옮김 */}
-      <button
-        className="floating-chat-btn"
-        onClick={() => setShowChat(!showChat)}
-        title="실시간 채팅 열기"
-      >
-        💬
-      </button>
-
-      {showChat && (
-        <div className="floating-chat-panel">
-          <div className="chat-header">
-            <h3>실시간 채팅</h3>
-            <button onClick={() => setShowChat(false)}>✕</button>
-          </div>
-          <div className="chat-body">
-            <WebSocketChatWindow />
           </div>
         </div>
       )}
