@@ -1,20 +1,12 @@
-version: '3.9'
+version: "3.9"
 
 services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev          # ← 당신이 만든 파일 이름과 맞춰주세요
+  redis:
+    image: redis:7-alpine
+    container_name: chat-redis
     ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules                 # node_modules 충돌 방지
-    environment:
-      - VITE_BACKEND_TARGET=http://backend:8000   # ← vite proxy가 이걸로 backend 찾음
-    command: npm run dev -- --host 0.0.0.0
-    depends_on:
-      - backend
+      - "6379:6379"           # 로컬에서 redis-cli로 확인 가능
+    restart: unless-stopped
 
   backend:
     build: ./backend
@@ -23,3 +15,24 @@ services:
     volumes:
       - ./backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - redis
+    environment:
+      USE_REDIS: "true"
+      REDIS_URL: "redis://redis:6379/0"   # docker 내부 서비스 이름
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_BACKEND_TARGET: http://backend:8000
+      NODE_ENV: development
+    command: npm run dev -- --host 0.0.0.0
+    depends_on:
+      - backend

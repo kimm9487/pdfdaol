@@ -9,6 +9,7 @@ export default function MessageBubble({ message }) {
     isSystem,
     isContinuous = false,
     showSenderInfo = true,
+    status, // ← 새로 추가
   } = message || {};
 
   if (isSystem) {
@@ -69,7 +70,18 @@ export default function MessageBubble({ message }) {
         </div>
 
         {/* 시간 (내 메시지는 오른쪽, 상대는 왼쪽 아래) */}
-        <div className="text-[10px] text-gray-400 mt-0.5 px-1">{timeStr}</div>
+        <div className="text-[10px] text-gray-400 mt-0.5 px-1">
+          {timeStr}
+          {status === "sending" && (
+            <span className="text-blue-500 font-medium">전송 중...</span>
+          )}
+          {status === "sent" && (
+            <span className="text-green-500">✓</span> // 선택사항: 체크 표시
+          )}
+          {status === "failed" && (
+            <span className="text-red-500 font-medium">전송 실패</span>
+          )}
+        </div>
       </div>
     </div>
   );
