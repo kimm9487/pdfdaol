@@ -36,20 +36,24 @@ export default function WebSocketChat() {
 
     const newSocket = io("/", {
       path: "/socket.io/",
-      transports: ["polling", "websocket"],
+      transports: ["websocket", "polling"], // websocket을 먼저 시도하도록 순서 변경
       upgrade: true,
-      rememberUpgrade: true,
-      forceNew: true,
+      forceNew: false,
       reconnection: true,
-      reconnectionAttempts: 15,
-      reconnectionDelay: 1500,
-      timeout: 20000,
+      reconnectionAttempts: 30,
+      reconnectionDelay: 3000,
+      reconnectionDelayMax: 15000,
+      timeout: 45000,
       auth: { session_token: sessionToken },
       withCredentials: true, // 쿠키/인증 헤더 전달 보장
     });
 
     newSocket.on("connect", () => {
       console.log("[Background Socket] 연결 성공!");
+
+      newSocket.emit("authenticate", {
+        session_token: sessionToken,
+      });
       setIsConnected(true);
     });
 
@@ -71,9 +75,18 @@ export default function WebSocketChat() {
 
     // 실시간 메시지 수신
     newSocket.on("receiveMessage", (msg) => {
+      console.log("🔥 메시지 받음:", msg);
+
+      // 🔥 여기 추가 (핵심)
+      const safeMsg = {
+        ...msg,
+        timestamp: msg.timestamp || new Date().toISOString(),
+      };
+
       setMessages((prev) => {
-        const updated = [...prev, msg].slice(-1000);
+        const updated = [...prev, safeMsg].slice(-1000);
         const key = getStorageKey();
+
         if (key) localStorage.setItem(key, JSON.stringify(updated));
         return updated;
       });
@@ -122,7 +135,6 @@ export default function WebSocketChat() {
     }
   }, [isLoggedIn, userId, sessionToken]);
 
-  
   // 로그아웃 시 정리
   useEffect(() => {
     if (!isLoggedIn) {
@@ -135,9 +147,15 @@ export default function WebSocketChat() {
   }, [isLoggedIn]);
 
   const handleSendMessage = (text) => {
-    if (!socket || !isConnected) return false;
-    socket.emit("sendMessage", { content: text });
-    return true;
+    if (!text?.trim()) return false;
+    console.log("[Chat] 메시지 전송 시도:", text);
+    const success = socket?.emit("sendMessage", { content: text });
+    console.log(
+      "[Chat] emit 결과:",
+      success ? "성공" : "실패 - 소켓 연결 상태:",
+      socket?.connected,
+    );
+    return success;
   };
 
   // 채팅창 열릴 때 unread 초기화
