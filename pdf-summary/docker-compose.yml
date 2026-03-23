@@ -113,6 +113,7 @@ services:
       CHROMA_COLLECTION: documents
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
+      LIBREOFFICE_PATH: /usr/bin/soffice
       PYTHONPATH: /app
       OCR_USE_GPU: "true"
       PADDLE_DEVICE: gpu:0
