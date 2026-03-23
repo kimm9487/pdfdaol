@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 import { API_BASE } from "../../config/api";
 import "./style.css";
 
-const CHAT_DEFAULT_MODEL = "phi3:mini";
+const CHAT_DEFAULT_MODEL = "exaone3.5:2.4b";
 const MAX_EXTRACT_DOCS = 5;
 
 const IGNORED_PROMPT_PREFIXES = [
@@ -100,7 +100,7 @@ const getValidatedFiles = (files, currentCount = 0) => {
 
 const preferredChatModels = (models) => {
   const uniqueModels = Array.from(new Set((models || []).filter(Boolean)));
-  const priority = ["phi3:mini", "gemma3:latest", "gemma3:lastest"];
+  const priority = ["exaone3.5:2.4b", "gemma3:latest"];
   const ordered = [];
 
   priority.forEach((model) => {

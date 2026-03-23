@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
 
   console.log(`[Vite] Using backend target: ${backendTarget}`); // ← 디버깅용 로그 (중요!)
 
+  
   return {
     plugins: [react()],
 
@@ -24,12 +25,18 @@ export default defineConfig(({ mode }) => {
           port: 5173,
           proxy: {
             // Socket.IO 전용 프록시 (가장 중요한 부분)
-            "/socket.io": {
+            "/socket.io/": {
               target: backendTarget,
               ws: true,
               changeOrigin: true,
               secure: false,
-              agent: new http.Agent({ keepAlive: true }),
+              rewrite: (path) => path,
+              agent: new http.Agent({
+                keepAlive: true,
+                keepAliveMsecs: 1000, // 1초마다 keep-alive 패킷 보내기
+                timeout: 60000, // 연결 타임아웃 60초
+                freeSocketTimeout: 30000, // 유휴 소켓 30초 후 정리 (ECONNRESET 방지)
+              }),
 
               // ↓↓↓ 여기부터 아래처럼 교체 (전체 configure 블록 통째로 바꿈)
               configure: (proxy) => {
@@ -41,6 +48,12 @@ export default defineConfig(({ mode }) => {
                 });
               },
               // ======================================================
+            },
+            // 추가: 일반 API도 proxy (Socket.IO polling이 /api를 건드릴 때 대비)
+            "/api": {
+              target: backendTarget,
+              changeOrigin: true,
+              secure: false,
             },
 
             // 필요하면 일반 API도 동일하게 (나중에 확장 용이)

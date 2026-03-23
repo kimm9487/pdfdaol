@@ -35,16 +35,17 @@ export default function WebSocketChat() {
     }
 
     const newSocket = io("/", {
-      path: "/socket.io",
+      path: "/socket.io/",
       transports: ["polling", "websocket"],
       upgrade: true,
       rememberUpgrade: true,
       forceNew: true,
       reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 800,
-      timeout: 15000,
+      reconnectionAttempts: 15,
+      reconnectionDelay: 1500,
+      timeout: 20000,
       auth: { session_token: sessionToken },
+      withCredentials: true, // 쿠키/인증 헤더 전달 보장
     });
 
     newSocket.on("connect", () => {
@@ -121,6 +122,7 @@ export default function WebSocketChat() {
     }
   }, [isLoggedIn, userId, sessionToken]);
 
+  
   // 로그아웃 시 정리
   useEffect(() => {
     if (!isLoggedIn) {

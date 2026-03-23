@@ -63,9 +63,8 @@ const DocumentList = () => {
                                <tr>
                                    <th>ID</th>
                                    <th>파일명</th>
-                                   <th>원문번역</th>
-                                   <th>요약번역</th>
-                                   <th>처리시간</th>
+                                   <th>원문 추출 시간</th>
+                                   <th>요약 상태</th>
                                </tr>
                            </thead>
                            <tbody>
@@ -74,17 +73,19 @@ const DocumentList = () => {
                                        <td>{doc.id}</td>
                                        <td title={doc.filename}>{doc.filename}</td>
                                        <td>
-                                           <span className={`badge ${doc.has_original_translation ? 'badge-success' : 'badge-danger'}`}>
-                                               {doc.has_original_translation ? '완료' : '미완료'}
+                                           <span className="badge badge-info">
+                                               {typeof doc.processing_times?.extraction === 'number' ? `${doc.processing_times.extraction.toFixed(1)}s` : '-'}
                                            </span>
                                        </td>
                                        <td>
-                                           <span className={`badge ${doc.has_summary_translation ? 'badge-success' : 'badge-danger'}`}>
-                                               {doc.has_summary_translation ? '완료' : '미완료'}
+                                           <span className={`badge${(doc.summary && doc.summary.trim()) ? ' badge-success' : ' badge-warning'}`}>
+                                               {(doc.summary && doc.summary.trim()) ? '완료' : '요약안함'}
                                            </span>
-                                       </td>
-                                       <td>
-                                           <small>요약: {doc.processing_times.summary?.toFixed(1)}s</small>
+                                           {(doc.summary && doc.summary.trim()) && typeof doc.processing_times?.summary === 'number' && (
+                                               <div style={{ fontSize: '0.85em', color: '#666', marginTop: 2 }}>
+                                                   (요약: {doc.processing_times.summary.toFixed(1)}s)
+                                               </div>
+                                           )}
                                        </td>
                                    </tr>
                                ))}

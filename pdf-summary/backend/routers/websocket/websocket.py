@@ -7,7 +7,7 @@ import os
 from database import get_db, User, UserSession
 from datetime import datetime
 from redis.asyncio import Redis, from_url as redis_from_url
-# Python 3.9버전 redis 호환
+# Python 3.9버전 redis
 from typing import Optional
 
 # ────────────────────────────────────────────────
@@ -47,7 +47,7 @@ else:
 sio = socketio.AsyncServer(
     client_manager=manager,
     async_mode='asgi',
-    cors_allowed_origins="*",
+    cors_allowed_origins=[],
     logger=True,
     engineio_logger=True,
     ping_timeout=30,
@@ -62,7 +62,7 @@ online_users_by_user = {}
 CHAT_HISTORY_KEY = "chat:history"
 MAX_HISTORY = 1000
 
-# Redis 클라이언트 초기화 , python 3.9버전 redis 호환
+# Redis 클라이언트 초기화 , python 3.9버전 redius 호환
 redis_client: Optional[Redis] = None
 
 if USE_REDIS and REDIS_URL:
@@ -71,13 +71,11 @@ if USE_REDIS and REDIS_URL:
         print("[WebSocket] Redis async 클라이언트 연결 성공")
     except Exception as e:
         print(f"[WebSocket] Redis async 클라이언트 연결 실패: {str(e)}")
-        # Redis 클라이언트 초기화 , python 3.9버전 redis 호환
-        redis_client: Optional[Redis] = None
+        redis_client = None
 
 # 온라인 사용자 Redis 키
 ONLINE_USERS_KEY = "chat:online_users"
 ONLINE_USERS_UPDATE_CHANNEL = "chat:online:update"
-
 
 # ==================== 수정된 부분 ====================
 async def broadcast_online_users():

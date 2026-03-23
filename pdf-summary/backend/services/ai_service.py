@@ -451,6 +451,10 @@ async def summarize_text_stream(text: str, model: str = DEFAULT_MODEL) -> AsyncI
                     "model": model,
                     "prompt": prompt,
                     "stream": True,
+                    # [속도 최적화 2026-03-19] 컨텍스트 크기 축소 + 최대 토큰 제한 → LLM 추론 속도 향상
+                    "num_ctx": 4096,       # 기본값 ~8192보다 작게 설정
+                    "num_predict": 1024,  # 요약 출력 토큰 상한
+                    "repeat_penalty": 1.1, # 반복 패널티 줄여 속도 향상
                 },
             ) as response:
                 if response.status_code != 200:
@@ -774,6 +778,95 @@ async def _translate_long_text(text: str, model: str) -> str:
             translated_chunks.append(f"[번역 실패 구간 {i+1}: {str(e)}]")
     
     return "\n\n".join(translated_chunks)
+
+
+# [추가 2026-03-19] translate_to_english_stream / _stream_translate_chunk
+# 기존 translate_to_english()는 응답이 완전히 완성된 후 한 번에 반환(non-streaming)했음.
+# 번역도 요약처럼 실시간 타이핑 효과를 주기 위해 Ollama stream:True 방식으로 교체.
+#
+# - translate_to_english_stream(): 진입점. 텍스트가 6000자 초과 시 4000자 청크로 분할하여
+#   청크별로 _stream_translate_chunk()를 호출하고, 청크 사이에 "\n\n" 구분자를 yield.
+#   6000자 이하면 바로 _stream_translate_chunk() 호출.
+# - _stream_translate_chunk(): Ollama /api/generate에 stream:True로 POST.
+#   응답 라인을 JSON 파싱하여 response 필드(토큰)를 하나씩 yield.
+#   done:true가 오면 루프 종료.
+async def translate_to_english_stream(text: str, model: str = DEFAULT_MODEL) -> AsyncIterator[str]:
+    """한국어 텍스트를 영어로 번역하며 토큰을 스트리밍합니다."""
+    MAX_CHARS = 6000
+    if len(text) > MAX_CHARS:
+        CHUNK_SIZE = 4000
+        OVERLAP = 200
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = min(start + CHUNK_SIZE, len(text))
+            if end < len(text):
+                last_period = text.rfind('.', start, end)
+                last_newline = text.rfind('\n', start, end)
+                boundary = max(last_period, last_newline)
+                if boundary > start + CHUNK_SIZE // 2:
+                    end = boundary + 1
+            chunks.append(text[start:end])
+            if end >= len(text):
+                break
+            next_start = max(0, end - OVERLAP)
+            if next_start <= start:
+                break
+            start = next_start
+        for i, chunk in enumerate(chunks):
+            if i > 0:
+                yield "\n\n"
+            async for token in _stream_translate_chunk(chunk, model):
+                yield token
+        return
+    async for token in _stream_translate_chunk(text, model):
+        yield token
+
+
+async def _stream_translate_chunk(text: str, model: str) -> AsyncIterator[str]:
+    """단일 청크를 번역하며 토큰 스트리밍합니다. Ollama stream:True 사용."""
+    prompt = f"""다음 한국어 텍스트를 자연스러운 영어로 번역해주세요.
+전문용어는 적절히 유지하고, 문맥과 의미를 정확히 전달해주세요.
+
+한국어 텍스트:
+{text}
+
+영어 번역:"""
+
+    try:
+        async with httpx.AsyncClient(timeout=600.0) as client:
+            async with client.stream(
+                "POST",
+                f"{OLLAMA_BASE_URL}/api/generate",
+                json={
+                    "model": model, "prompt": prompt, "stream": True,
+                    # [속도 최적화 2026-03-19] 번역은 요약보다 컨텍스트가 짧으므로 num_ctx 조절
+                    "num_ctx": 3072,
+                    "num_predict": 1500,
+                    "repeat_penalty": 1.1,
+                },
+            ) as response:
+                if response.status_code != 200:
+                    body = await response.aread()
+                    raise HTTPException(status_code=502, detail=f"번역 API 오류: {response.status_code}")
+                async for line in response.aiter_lines():
+                    if not line:
+                        continue
+                    try:
+                        payload = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    chunk = payload.get("response", "")
+                    if chunk:
+                        yield chunk
+                    if payload.get("done"):
+                        break
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Ollama 서버에 연결할 수 없습니다.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"번역 스트리밍 중 오류 발생: {str(e)}")
 
 
 async def get_available_models() -> list:

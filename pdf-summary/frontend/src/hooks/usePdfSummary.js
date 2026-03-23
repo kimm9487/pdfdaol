@@ -32,7 +32,11 @@ export const usePdfSummary = () => {
   const [isDragActive, setIsDragActive] = useState(false);
   const [translatingOriginal, setTranslatingOriginal] = useState(false);
   const [translatingSummary, setTranslatingSummary] = useState(false);
-  const [streamingSummary, setStreamingSummary] = useState("");
+  const [streamingSummary, setStreamingSummary] = useState(""); // [추가] 35줄: 실시간 스트리밍 요약 텍스트 상태
+  const [streamingTranslationOriginal, setStreamingTranslationOriginal] =
+    useState(""); // [추가] 원문 번역 스트리밍 상태
+  const [streamingTranslationSummary, setStreamingTranslationSummary] =
+    useState(""); // [추가] 요약 번역 스트리밍 상태
   const [extractionProgress, setExtractionProgress] = useState({
     mode: null,
     current: 0,
@@ -86,7 +90,12 @@ export const usePdfSummary = () => {
       }
     }
     if (typeof detail === "object") {
-      return detail.message || detail.reason || detail.suggestion || JSON.stringify(detail);
+      return (
+        detail.message ||
+        detail.reason ||
+        detail.suggestion ||
+        JSON.stringify(detail)
+      );
     }
     return fallback;
   };
@@ -228,7 +237,10 @@ export const usePdfSummary = () => {
         let errorMsg = "추출 중 오류가 발생했습니다.";
         try {
           const data = await res.json();
-          errorMsg = normalizeErrorMessage(data.detail || data.message || data, errorMsg);
+          errorMsg = normalizeErrorMessage(
+            data.detail || data.message || data,
+            errorMsg,
+          );
         } catch (_) {}
         setStatus({ type: "error", msg: errorMsg });
         return;
@@ -268,22 +280,45 @@ export const usePdfSummary = () => {
                 ? "ocr_page"
                 : "ocr"
               : "page";
-            setExtractionProgress({ mode, current: 0, total: event.total_pages || 0 });
+            setExtractionProgress({
+              mode,
+              current: 0,
+              total: event.total_pages || 0,
+            });
           } else if (event.type === "page") {
-            setExtractionProgress({ mode: "page", current: event.page || 0, total: event.total || 0 });
+            setExtractionProgress({
+              mode: "page",
+              current: event.page || 0,
+              total: event.total || 0,
+            });
           } else if (event.type === "ocr_progress") {
-            setExtractionProgress({ mode: "ocr_page", current: event.page || 0, total: event.total || 0 });
+            setExtractionProgress({
+              mode: "ocr_page",
+              current: event.page || 0,
+              total: event.total || 0,
+            });
           } else if (event.type === "chunk_start") {
-            setExtractionProgress({ mode: "chunk", current: 0, total: event.total_chunks || 0 });
+            setExtractionProgress({
+              mode: "chunk",
+              current: 0,
+              total: event.total_chunks || 0,
+            });
           } else if (event.type === "chunk") {
-            setExtractionProgress({ mode: "chunk", current: event.index || 0, total: event.total || 0 });
+            setExtractionProgress({
+              mode: "chunk",
+              current: event.index || 0,
+              total: event.total || 0,
+            });
           } else if (event.type === "done") {
             finalResult = event;
             setExtractionProgress({ mode: null, current: 0, total: 0 });
           } else if (event.type === "error") {
             setStatus({
               type: "error",
-              msg: normalizeErrorMessage(event.detail, "추출 중 오류가 발생했습니다."),
+              msg: normalizeErrorMessage(
+                event.detail,
+                "추출 중 오류가 발생했습니다.",
+              ),
             });
             setExtractionProgress({ mode: null, current: 0, total: 0 });
           }
@@ -292,7 +327,8 @@ export const usePdfSummary = () => {
 
       if (finalResult) {
         setResult(finalResult);
-        setStatus({ type: "success", msg: "텍스트 추출이 완료되었습니다." });
+        setStatus({ type: "", msg: "" });
+        toast.success("텍스트 추출 완료!");
       }
     } catch (err) {
       console.error("Fetch Error:", err);
@@ -303,6 +339,7 @@ export const usePdfSummary = () => {
     }
   };
 
+  // [추가] 338~432줄: SSE 방식의 AI 요약 핸들러 (token 이벤트 처리, 타이핑 효과)
   const handleSummarizeExtracted = async () => {
     if (!result || !result.id) return;
     setSummarizing(true);
@@ -323,7 +360,10 @@ export const usePdfSummary = () => {
         let errorMsg = "요약 중 오류가 발생했습니다.";
         try {
           const data = await res.json();
-          errorMsg = normalizeErrorMessage(data.detail || data.message || data, errorMsg);
+          errorMsg = normalizeErrorMessage(
+            data.detail || data.message || data,
+            errorMsg,
+          );
         } catch (_) {}
         setStatus({ type: "error", msg: errorMsg });
         return;
@@ -340,37 +380,53 @@ export const usePdfSummary = () => {
       let accumulatedText = "";
       let modelUsed = selectedModel;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // [속도 최적화 2026-03-19] 토큰마다 setState 호출 대신 30ms 배치 업데이트
+      // 리렌더링 횟수를 최대 33회/초로 제한 → 렌더링 부하 감소 + 화면 더 부드럽게
+      let lastFlushed = "";
+      const flushInterval = setInterval(() => {
+        if (accumulatedText !== lastFlushed) {
+          lastFlushed = accumulatedText;
+          setStreamingSummary(accumulatedText);
+        }
+      }, 30);
 
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() || "";
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        for (const part of parts) {
-          if (!part.startsWith("data: ")) continue;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || "";
 
-          let event;
-          try {
-            event = JSON.parse(part.slice(6));
-          } catch (_) {
-            continue;
-          }
+          for (const part of parts) {
+            if (!part.startsWith("data: ")) continue;
 
-          if (event.type === "token") {
-            accumulatedText += event.text || "";
-            setStreamingSummary(accumulatedText);
-          } else if (event.type === "done") {
-            modelUsed = event.model_used || selectedModel;
-          } else if (event.type === "error") {
-            setStatus({
-              type: "error",
-              msg: normalizeErrorMessage(event.detail, "요약 중 오류가 발생했습니다."),
-            });
-            setStreamingSummary("");
+            let event;
+            try {
+              event = JSON.parse(part.slice(6));
+            } catch (_) {
+              continue;
+            }
+
+            if (event.type === "token") {
+              accumulatedText += event.text || ""; // 인터벌이 setState 처리
+            } else if (event.type === "done") {
+              modelUsed = event.model_used || selectedModel;
+            } else if (event.type === "error") {
+              setStatus({
+                type: "error",
+                msg: normalizeErrorMessage(
+                  event.detail,
+                  "요약 중 오류가 발생했습니다.",
+                ),
+              });
+              setStreamingSummary("");
+            }
           }
         }
+      } finally {
+        clearInterval(flushInterval);
       }
 
       if (accumulatedText) {
@@ -381,7 +437,8 @@ export const usePdfSummary = () => {
         }));
       }
       setStreamingSummary("");
-      setStatus({ type: "success", msg: "LLM 요약이 완료되었습니다." });
+      setStatus({ type: "", msg: "" });
+      toast.success("AI 요약 완료!");
     } catch (err) {
       console.error("요약 오류:", err);
       setStatus({
@@ -394,11 +451,26 @@ export const usePdfSummary = () => {
     }
   };
 
+  // [추가 2026-03-19] handleTranslate - SSE 스트리밍 기반 번역 핸들러
+  // 기존: fetch → res.json() → translations 상태 저장 (한 번에 표시)
+  // 변경: fetch → ReadableStream 파싱 → token 이벤트마다 setStreamingTranslation 호출
+  //
+  // 동작 흐름:
+  //   1. 번역 시작: setTranslatingOriginal/Summary(true), setStreamingTranslation("")
+  //   2. SSE 수신 루프:
+  //      - token 이벤트 → accumulatedText에 누적 → setStreamingTranslation(accumulatedText)
+  //      - done  이벤트 → setTranslations() 저장, setStreamingTranslation("") 초기화
+  //      - error 이벤트 → setStatus({ type:"error" })
+  //   3. 번역 완료: setTranslatingOriginal/Summary(false)
   const handleTranslate = async (textType) => {
     if (!result || !result.id) return;
     const isOriginal = textType === "original";
+    const setStreamingTranslation = isOriginal
+      ? setStreamingTranslationOriginal
+      : setStreamingTranslationSummary;
     if (isOriginal) setTranslatingOriginal(true);
     else setTranslatingSummary(true);
+    setStreamingTranslation("");
     try {
       const userDbId = localStorage.getItem("userDbId");
       const formData = new FormData();
@@ -410,22 +482,84 @@ export const usePdfSummary = () => {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(normalizeErrorMessage(data.detail || data.message || data, "번역 중 오류가 발생했습니다."));
+        let errorMsg = "번역 중 오류가 발생했습니다.";
+        try {
+          const data = await res.json();
+          errorMsg = normalizeErrorMessage(
+            data.detail || data.message || data,
+            errorMsg,
+          );
+        } catch (_) {}
+        setStatus({ type: "error", msg: errorMsg });
+        return;
       }
-      setTranslations((prev) => ({
-        ...prev,
-        [textType]: data.translated_text,
-      }));
-      setStatus({
-        type: "success",
-        msg: `${textType === "original" ? "원문" : "요약"}이 영문으로 번역되었습니다.`,
-      });
-      setTimeout(() => setStatus({ type: "", msg: "" }), 3000);
+
+      if (!res.body) {
+        setStatus({ type: "error", msg: "스트리밍 응답 본문이 없습니다." });
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let accumulatedText = "";
+
+      // [속도 최적화 2026-03-19] 30ms 배치 업데이트
+      let lastFlushed = "";
+      const flushInterval = setInterval(() => {
+        if (accumulatedText !== lastFlushed) {
+          lastFlushed = accumulatedText;
+          setStreamingTranslation(accumulatedText);
+        }
+      }, 30);
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || "";
+          for (const part of parts) {
+            if (!part.startsWith("data: ")) continue;
+            let event;
+            try {
+              event = JSON.parse(part.slice(6));
+            } catch (_) {
+              continue;
+            }
+            if (event.type === "token") {
+              accumulatedText += event.text || ""; // 인터벌이 setState 처리
+            } else if (event.type === "done") {
+              const finalText = event.translated_text || accumulatedText;
+              setTranslations((prev) => ({ ...prev, [textType]: finalText }));
+              setStreamingTranslation("");
+              toast.success(
+                textType === "original"
+                  ? "원문 번역 완료! 🌐"
+                  : "요약 번역 완료! 🌐",
+              );
+            } else if (event.type === "error") {
+              setStatus({
+                type: "error",
+                msg: normalizeErrorMessage(
+                  event.detail,
+                  "번역 중 오류가 발생했습니다.",
+                ),
+              });
+              setStreamingTranslation("");
+            }
+          }
+        }
+      } finally {
+        clearInterval(flushInterval);
+      }
     } catch (err) {
       console.error("번역 오류:", err);
       setStatus({ type: "error", msg: err.message });
+      setStreamingTranslation("");
     } finally {
       if (isOriginal) setTranslatingOriginal(false);
       else setTranslatingSummary(false);
@@ -459,7 +593,9 @@ export const usePdfSummary = () => {
     isDragActive,
     translatingOriginal,
     translatingSummary,
-    streamingSummary,
+    streamingSummary, // [추가] 506줄: 스트리밍 요약 상태 반환
+    streamingTranslationOriginal,
+    streamingTranslationSummary,
     extractionProgress,
     translations,
     isImportant,

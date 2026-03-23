@@ -60,6 +60,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsm6 \
     libxext6 \
     libreoffice \
+    default-jre \
     libxrender1 \
     && ln -s /usr/bin/python3 /usr/bin/python \
     && apt-get clean \

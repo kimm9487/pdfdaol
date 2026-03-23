@@ -92,6 +92,48 @@ def _extract_text_from_hwpx_bytes(content: bytes) -> str:
         raise HTTPException(status_code=422, detail=f"HWPX 읽기 실패: {exc}")
 
 
+def _is_hwp_ole(content: bytes) -> bool:
+    HWP_SIGNATURE = b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'
+    if not content.startswith(HWP_SIGNATURE):
+        return False
+    try:
+        import olefile
+        f = olefile.OleFileIO(BytesIO(content))
+        streams = [s[0] for s in f.listdir() if s]
+        return 'FileHeader' in streams
+    except Exception:
+        return False
+
+
+def _extract_text_from_hwp_ole_bytes(content: bytes) -> str:
+    import tempfile
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".hwp", delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        result = subprocess.run(
+            ["hwp5txt", tmp_path],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        text = result.stdout.strip()
+        if not text:
+            raise HTTPException(status_code=422, detail="HWP에서 추출된 텍스트가 없습니다.")
+        return text
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=422, detail="HWP 텍스트 추출 시간이 초과되었습니다.")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"HWP 텍스트 추출 실패: {exc}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
 def _convert_document_to_pdf_bytes(content: bytes, original_name: str, forced_suffix: str = None) -> bytes:
     soffice = _find_soffice()
     if not soffice:
@@ -107,7 +149,7 @@ def _convert_document_to_pdf_bytes(content: bytes, original_name: str, forced_su
 
     with TemporaryDirectory() as tmp_dir:
         input_path = Path(tmp_dir) / f"input{original_suffix}"
-        output_path = Path(tmp_dir) / "output.pdf"
+        output_path = Path(tmp_dir) / "input.pdf"
 
         input_path.write_bytes(content)
 
@@ -200,10 +242,23 @@ async def extract_text_from_pdf(file_bytes: bytes, filename: str, ocr_model: str
         )
 
     if extension == ".hwp":
+        if _is_hwp_ole(file_bytes):
+            text = _extract_text_from_hwp_ole_bytes(file_bytes)
+            return {
+                "text": text,
+                "total_pages": 1,
+                "successful_pages": 1,
+                "processing_time": 0.0,
+                "char_count": len(text),
+                "ocr_model": model,
+                "source_file": filename,
+                "converted_from": ".hwp",
+                "note": "HWP 직접 텍스트 추출",
+            }
         raise HTTPException(
             status_code=422,
             detail=(
-                "현재 Docker 환경에서는 구형 .hwp 변환이 안정적으로 지원되지 않습니다. "
+                "HWP 파일을 읽을 수 없습니다. "
                 "파일을 .hwpx 또는 .docx/.pdf로 변환 후 업로드해주세요."
             ),
         )
@@ -279,6 +334,21 @@ async def extract_text_from_pdf(file_bytes: bytes, filename: str, ocr_model: str
                 "note": "DOCX 직접 텍스트 추출 경로 사용",
             }
         except HTTPException:
+            # HWP OLE 형식인 경우 직접 처리
+            if _is_hwp_ole(file_bytes):
+                text = _extract_text_from_hwp_ole_bytes(file_bytes)
+                return {
+                    "text": text,
+                    "total_pages": 1,
+                    "successful_pages": 1,
+                    "processing_time": 0.0,
+                    "char_count": len(text),
+                    "ocr_model": model,
+                    "source_file": filename,
+                    "converted_from": ".hwp",
+                    "note": "확장자가 .docx이나 실제 HWP 파일 - 직접 텍스트 추출",
+                }
+
             forced_suffix = ".docx"
             if file_bytes.startswith(b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"):
                 forced_suffix = ".doc"
@@ -304,6 +374,20 @@ async def extract_text_from_pdf(file_bytes: bytes, filename: str, ocr_model: str
             return result
 
     # doc 등 나머지 문서 변환 경로
+    if _is_hwp_ole(file_bytes):
+        text = _extract_text_from_hwp_ole_bytes(file_bytes)
+        return {
+            "text": text,
+            "total_pages": 1,
+            "successful_pages": 1,
+            "processing_time": 0.0,
+            "char_count": len(text),
+            "ocr_model": model,
+            "source_file": filename,
+            "converted_from": ".hwp",
+            "note": "확장자가 .doc이나 실제 HWP 파일 - 직접 텍스트 추출",
+        }
+
     pdf_bytes = _convert_document_to_pdf_bytes(file_bytes, filename)
     result = await extract_with_model(
         file_bytes=pdf_bytes,

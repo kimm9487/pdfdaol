@@ -36,12 +36,12 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
       EXTRACT_DEFAULT_MODEL: gemma3:latest
-      CHAT_DEFAULT_MODEL: phi3:mini
+      CHAT_DEFAULT_MODEL: exaone3.5:2.4b
       CHAT_NUM_CTX: "4096"
       CHAT_NUM_PREDICT: "900"
       CHAT_REPEAT_PENALTY: "1.1"
       DEFAULT_MODEL: gemma3:latest
-      LORA_MODEL_NAME: phi3:mini
+      LORA_MODEL_NAME: exaone3.5:2.4b
       CHROMA_BASE_URL: http://chroma:8000
       CHROMA_COLLECTION: documents
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -73,7 +73,7 @@ services:
       - "6379:6379"
 
   chroma:
-    image: chromadb/chroma:0.5.5
+    image: chromadb/chroma:0.5.23
     container_name: pdf_chroma
     restart: unless-stopped
     environment:
@@ -103,12 +103,12 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
       EXTRACT_DEFAULT_MODEL: gemma3:latest
-      CHAT_DEFAULT_MODEL: phi3:mini
+      CHAT_DEFAULT_MODEL: exaone3.5:2.4b
       CHAT_NUM_CTX: "4096"
       CHAT_NUM_PREDICT: "900"
       CHAT_REPEAT_PENALTY: "1.1"
       DEFAULT_MODEL: gemma3:latest
-      LORA_MODEL_NAME: phi3:mini
+      LORA_MODEL_NAME: exaone3.5:2.4b
       CHROMA_BASE_URL: http://chroma:8000
       CHROMA_COLLECTION: documents
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -147,12 +147,12 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
       EXTRACT_DEFAULT_MODEL: gemma3:latest
-      CHAT_DEFAULT_MODEL: phi3:mini
+      CHAT_DEFAULT_MODEL: exaone3.5:2.4b
       CHAT_NUM_CTX: "4096"
       CHAT_NUM_PREDICT: "900"
       CHAT_REPEAT_PENALTY: "1.1"
       DEFAULT_MODEL: gemma3:latest
-      LORA_MODEL_NAME: phi3:mini
+      LORA_MODEL_NAME: exaone3.5:2.4b
       CHROMA_BASE_URL: http://chroma:8000
       CHROMA_COLLECTION: documents
       CELERY_BROKER_URL: redis://redis:6379/0

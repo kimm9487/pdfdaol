@@ -20,6 +20,9 @@
 .badge-admin { background: #ff9500; color: white; }
 .badge-user { background: #ccc; color: #333; }
 
+/* 요약안함(경고) 뱃지 스타일 */
+.badge-warning { background: #fff3cd; color: #856404; }
+
 /* ===== [추가] 로딩 및 오류 메시지 스타일 ===== */
 .loading { text-align: center; padding: 2rem; color: #7f8c8d; font-size: 0.95rem; }
 .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; }
