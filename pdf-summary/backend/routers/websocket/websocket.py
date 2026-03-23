@@ -7,7 +7,8 @@ import os
 from database import get_db, User, UserSession
 from datetime import datetime
 from redis.asyncio import Redis, from_url as redis_from_url
-
+# Python 3.9버전 redis 호환
+from typing import Optional
 
 # ────────────────────────────────────────────────
 # 환경 자동 감지 + 동적 Redis 활성화
@@ -61,8 +62,8 @@ online_users_by_user = {}
 CHAT_HISTORY_KEY = "chat:history"
 MAX_HISTORY = 1000
 
-# Redis 클라이언트 초기화
-redis_client: Redis | None = None
+# Redis 클라이언트 초기화 , python 3.9버전 redis 호환
+redis_client: Optional[Redis] = None
 
 if USE_REDIS and REDIS_URL:
     try:
@@ -70,7 +71,8 @@ if USE_REDIS and REDIS_URL:
         print("[WebSocket] Redis async 클라이언트 연결 성공")
     except Exception as e:
         print(f"[WebSocket] Redis async 클라이언트 연결 실패: {str(e)}")
-        redis_client = None
+        # Redis 클라이언트 초기화 , python 3.9버전 redis 호환
+        redis_client: Optional[Redis] = None
 
 # 온라인 사용자 Redis 키
 ONLINE_USERS_KEY = "chat:online_users"
