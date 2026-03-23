@@ -122,6 +122,7 @@ export default function WebSocketChat() {
     }
   }, [isLoggedIn, userId, sessionToken]);
 
+  
   // 로그아웃 시 정리
   useEffect(() => {
     if (!isLoggedIn) {

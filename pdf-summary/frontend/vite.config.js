@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
 
   console.log(`[Vite] Using backend target: ${backendTarget}`); // ← 디버깅용 로그 (중요!)
 
+  
   return {
     plugins: [react()],
 

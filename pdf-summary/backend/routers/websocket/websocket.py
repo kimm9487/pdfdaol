@@ -77,7 +77,6 @@ if USE_REDIS and REDIS_URL:
 ONLINE_USERS_KEY = "chat:online_users"
 ONLINE_USERS_UPDATE_CHANNEL = "chat:online:update"
 
-
 # ==================== 수정된 부분 ====================
 async def broadcast_online_users():
     """온라인 사용자 목록을 모든 클라이언트에게 브로드캐스트"""
