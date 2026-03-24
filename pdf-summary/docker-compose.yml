@@ -27,6 +27,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      glmocr:
+        condition: service_started
     environment:
       DB_HOST: 192.168.0.151
       DB_PORT: 3307
@@ -48,7 +50,13 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       OCR_USE_GPU: "true"
       PADDLE_DEVICE: gpu:0
-      # 협업자 추가
+      GLM_OCR_API_HOST: glmocr
+      GLM_OCR_API_PORT: "11434"
+      GLM_OCR_API_SCHEME: http
+      GLM_OCR_MAX_PARALLEL: "3"
+      GLM_OCR_MAX_IMAGE_SIDE: "1600"
+      GLM_OCR_RETRY_ON_EMPTY: "false"
+      GLM_OCR_ENABLE_TIMING_LOG: "true"
       USE_REDIS: "true"
       REDIS_URL: "redis://redis:6379/0"
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
@@ -117,6 +125,13 @@ services:
       PYTHONPATH: /app
       OCR_USE_GPU: "true"
       PADDLE_DEVICE: gpu:0
+      GLM_OCR_API_HOST: glmocr
+      GLM_OCR_API_PORT: "11434"
+      GLM_OCR_API_SCHEME: http
+      GLM_OCR_MAX_PARALLEL: "3"
+      GLM_OCR_MAX_IMAGE_SIDE: "1600"
+      GLM_OCR_RETRY_ON_EMPTY: "false"
+      GLM_OCR_ENABLE_TIMING_LOG: "true"
     gpus: all
     deploy:
       resources:
@@ -175,6 +190,27 @@ services:
     ports:
       - "5555:5555"
 
+  glmocr:
+    image: ollama/ollama:latest
+    container_name: pdf_glmocr
+    restart: unless-stopped
+    ports:
+      - "11435:11434"   # 기존 ollama(11434)와 포트 충돌 방지
+    gpus: all
+    environment:
+      OLLAMA_KEEP_ALIVE: "30m"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    volumes:
+      - glmocr_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull glm-ocr && wait"]
+
   ollama:
     image: ollama/ollama:latest
     container_name: pdf_ollama
@@ -219,3 +255,4 @@ volumes:
   ollama_data:
   mariadb_data:
   chroma_data:
+  glmocr_data:

@@ -9,7 +9,6 @@ import time
 import datetime
 import base64
 import os
-import hashlib
 from pydantic import BaseModel
 from typing import Optional
 
@@ -17,6 +16,8 @@ from celery.result import AsyncResult
 import PyPDF2
 
 from services.pdf_service import extract_text_from_pdf
+# [osj | 2026-03-24] OCR 진행률 SSE 실시간 전송을 위한 동기 추출 함수 import
+from services.ocr.factory import extract_with_model_sync
 from services.ai_service_extract import (
     summarize_text,
     summarize_text_stream,
@@ -51,9 +52,8 @@ def _stringify_detail(detail, fallback: str = "오류가 발생했습니다.") -
     return str(detail)
 
 
-def _build_chat_scope(user_id: Optional[int], text: str) -> str:
-    digest = hashlib.sha1((text or "").encode("utf-8", errors="ignore")).hexdigest()[:12]
-    return f"user_{user_id}_{digest}" if user_id else f"shared_{digest}"
+def _build_chat_scope(user_id: Optional[int]) -> str:
+    return f"user_{user_id}" if user_id else "shared"
 
 
 def _count_chat_documents(document_text: str) -> int:
@@ -91,7 +91,7 @@ async def chat_summarize(request: ChatSummarizeRequest):
         text=text,
         instruction=request.instruction,
         model=request.model,
-        user_scope=_build_chat_scope(request.user_id, text),
+        user_scope=_build_chat_scope(request.user_id),
         use_rag=request.use_rag,
         use_lora=request.use_lora,
     )
@@ -130,7 +130,7 @@ async def chat_summarize_stream(request: ChatSummarizeRequest):
                 text=text,
                 instruction=request.instruction,
                 model=request.model,
-                user_scope=_build_chat_scope(request.user_id, text),
+                user_scope=_build_chat_scope(request.user_id),
                 use_rag=request.use_rag,
                 use_lora=request.use_lora,
             ):
@@ -425,16 +425,65 @@ async def extract_pdf(
                     "ocr_model": "pypdf2",
                 }
             else:
-                yield _sse({"type": "start", "total_pages": 0, "ocr_mode": True})
+                # [osj | 2026-03-24] run_in_executor로 OCR을 별도 스레드에서 실행하고
+                # asyncio.Queue를 통해 페이지 완료 시마다 ocr_progress SSE를 실시간 전송
+                # 총 페이지 수를 먼저 파악하기 위해 PDF를 렌더링 (이미지는 OCR 단계에서 재사용)
                 try:
-                    # ✅ file 대신 이미 읽은 contents(bytes)로 직접 호출
-                    extraction_result = await extract_text_from_pdf(
+                    from services.ocr.pdf_page_renderer import render_input_to_images as _render
+                    import os as _os
+                    _ext = _os.path.splitext(filename)[1].lower()
+                    _preview_images = _render(contents, _ext)
+                    _total = len(_preview_images)
+                except Exception:
+                    _total = 0
+
+                yield _sse({"type": "start", "total_pages": _total, "ocr_mode": True})
+                await asyncio.sleep(0)
+
+                loop = asyncio.get_event_loop()
+                progress_queue: asyncio.Queue = asyncio.Queue()
+
+                def _on_page(current: int, total: int):
+                    progress_queue.put_nowait({"page": current, "total": total})
+
+                import concurrent.futures as _cf
+                _executor = _cf.ThreadPoolExecutor(max_workers=1)
+
+                ocr_future = loop.run_in_executor(
+                    _executor,
+                    lambda: extract_with_model_sync(
                         file_bytes=contents,
                         filename=filename,
                         ocr_model=model,
-                    )
+                        on_page=_on_page,
+                    ),
+                )
+
+                extraction_result = None
+                ocr_error = None
+                while not ocr_future.done() or not progress_queue.empty():
+                    try:
+                        prog = progress_queue.get_nowait()
+                        yield _sse({"type": "ocr_progress", "page": prog["page"], "total": prog["total"]})
+                    except asyncio.QueueEmpty:
+                        pass
+                    await asyncio.sleep(0.05)
+
+                try:
+                    extraction_result = await ocr_future
                 except Exception as exc:
-                    detail = _stringify_detail(getattr(exc, "detail", str(exc)), "추출 중 오류가 발생했습니다.")
+                    ocr_error = exc
+
+                # 남은 큐 비우기
+                while not progress_queue.empty():
+                    try:
+                        prog = progress_queue.get_nowait()
+                        yield _sse({"type": "ocr_progress", "page": prog["page"], "total": prog["total"]})
+                    except asyncio.QueueEmpty:
+                        break
+
+                if ocr_error is not None:
+                    detail = _stringify_detail(getattr(ocr_error, "detail", str(ocr_error)), "추출 중 오류가 발생했습니다.")
                     yield _sse({"type": "error", "detail": detail})
                     return
 

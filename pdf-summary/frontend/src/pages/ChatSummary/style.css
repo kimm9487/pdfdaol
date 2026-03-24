@@ -249,6 +249,40 @@
   color: #6b7280;
 }
 
+.message-file-detail {
+  margin-top: 6px;
+  max-width: 100%;
+}
+
+.message-file-toggle-btn {
+  border: 1px solid #c7d2fe;
+  background: #ffffff;
+  color: #3730a3;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.message-file-toggle-btn:hover {
+  background: #eef2ff;
+}
+
+.message-file-text {
+  margin-top: 7px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111827;
+  padding: 10px 11px;
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+
 .thinking-indicator {
   align-self: flex-start;
   display: inline-flex;

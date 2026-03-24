@@ -47,7 +47,7 @@ else:
 sio = socketio.AsyncServer(
     client_manager=manager,
     async_mode='asgi',
-    cors_allowed_origins=[],
+    cors_allowed_origins="*",
     logger=True,
     engineio_logger=True,
     ping_timeout=30,
@@ -281,5 +281,5 @@ async def startup():
         print("[WebSocket] Redis 없음 → Pub/Sub 리스너 시작 안 함")    
 
 
-# 모든 @sio.event 정의 끝난 후, 파일의 가장 마지막 줄에 추가
+# 모든 @sio.event 정의 끝난 후, 파일의 가장 마지막 줄에 추가.
 print(f"✅ WebSocket 서버 시작 - {'Redis 모드' if manager else 'In-memory 모드'}")

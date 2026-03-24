@@ -3,12 +3,13 @@ import re
 import hashlib
 import json
 import httpx
+import asyncio
 from fastapi import HTTPException
 from urllib.parse import urlparse
 from typing import AsyncIterator, List, Optional, Tuple
 
 try:
-    import chromadb  # type: ignore
+    import chromadb  
 except Exception:
     chromadb = None
 
@@ -21,13 +22,15 @@ LORA_MODEL_NAME = os.getenv("LORA_MODEL_NAME", "phi3:mini")
 RAG_ENABLED = os.getenv("RAG_ENABLED", "true").strip().lower() == "true"
 CHROMA_BASE_URL = os.getenv("CHROMA_BASE_URL", "http://chroma:8000")
 CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "documents")
+CHROMA_SHARED_COLLECTION = os.getenv("CHROMA_SHARED_COLLECTION", f"{CHROMA_COLLECTION}_hybrid")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "4"))
-CHAT_TEMPERATURE = float(os.getenv("CHAT_TEMPERATURE", "0.2"))
-CHAT_TOP_P = float(os.getenv("CHAT_TOP_P", "0.9"))
+CHAT_TEMPERATURE = float(os.getenv("CHAT_TEMPERATURE", "0.1"))
+CHAT_TOP_P = float(os.getenv("CHAT_TOP_P", "0.7"))
 CHAT_NUM_CTX = int(os.getenv("CHAT_NUM_CTX", "4096"))
-CHAT_NUM_PREDICT = int(os.getenv("CHAT_NUM_PREDICT", "1200"))
+CHAT_NUM_PREDICT = int(os.getenv("CHAT_NUM_PREDICT", "800"))
 CHAT_REPEAT_PENALTY = float(os.getenv("CHAT_REPEAT_PENALTY", "1.1"))
+SUMMARY_MAX_CONCURRENCY = max(1, int(os.getenv("SUMMARY_MAX_CONCURRENCY", "3")))
 # 문서 입력 최대 글자 수: (num_ctx - 프롬프트 오버헤드 ~1000토큰) * 1.5 chars/token, 최소 2000자
 _CHAT_INPUT_MAX_CHARS = max(2000, int((CHAT_NUM_CTX - 1000) * 1.5))
 
@@ -56,7 +59,7 @@ CODE_REQUEST_KEYWORDS = [
 ]
 
 
-def _split_text_for_rag(text: str, chunk_size: int = 1200, overlap: int = 200) -> List[str]:
+def _split_text_for_rag(text: str, chunk_size: int = 800, overlap: int = 100) -> List[str]:
     chunks = []
     start = 0
     safe_text = (text or "").strip()
@@ -73,6 +76,85 @@ def _split_text_for_rag(text: str, chunk_size: int = 1200, overlap: int = 200) -
         start = next_start
     return chunks
 
+def _split_text_for_summary(text: str, chunk_size: int = 1200, overlap: int = 150) -> List[str]:
+    chunks = []
+    start = 0
+    safe_text = (text or "").strip()
+
+    while start < len(safe_text):
+        end = min(start + chunk_size, len(safe_text))
+        chunk = safe_text[start:end].strip()
+
+        if chunk:
+            chunks.append(chunk)
+
+        if end >= len(safe_text):
+            break
+
+        next_start = max(0, end - overlap)
+        if next_start <= start:
+            break
+
+        start = next_start
+
+    return chunks
+
+
+def _split_text_with_progress_guard(
+    text: str,
+    chunk_size: int,
+    overlap: int,
+    min_chunk_ratio: float = 0.5,
+) -> List[str]:
+    """
+    경계 기반 분할 시 start가 반드시 전진하도록 강제합니다.
+    """
+    safe_text = text or ""
+    if not safe_text:
+        return []
+
+    chunks: List[str] = []
+    text_len = len(safe_text)
+    start = 0
+    max_iters = max(1, text_len // max(chunk_size - overlap, 1) + 5)
+    iterations = 0
+    min_chunk_len = max(1, int(chunk_size * min_chunk_ratio))
+
+    while start < text_len:
+        iterations += 1
+        if iterations > max_iters:
+            break
+
+        raw_end = min(start + chunk_size, text_len)
+        end = raw_end
+
+        if raw_end < text_len:
+            last_period = safe_text.rfind(".", start, raw_end)
+            last_newline = safe_text.rfind("\n", start, raw_end)
+            boundary = max(last_period, last_newline)
+            if boundary >= start + min_chunk_len:
+                end = boundary + 1
+
+        if end <= start:
+            end = raw_end
+        if end <= start:
+            break
+
+        chunk = safe_text[start:end]
+        if chunk:
+            chunks.append(chunk)
+
+        if end >= text_len:
+            break
+
+        next_start = max(0, end - overlap)
+        if next_start <= start:
+            next_start = min(text_len, start + min_chunk_len)
+        if next_start <= start:
+            break
+        start = next_start
+
+    return chunks
 
 def _is_smalltalk_instruction(instruction: str) -> bool:
     text = (instruction or "").strip()
@@ -85,7 +167,7 @@ def _is_smalltalk_instruction(instruction: str) -> bool:
 
     has_doc_keyword = any(keyword in normalized for keyword in DOCUMENT_TASK_KEYWORDS)
     has_casual_marker = any(marker in normalized for marker in ["되나", "될까", "가능", "괜찮", "물어봐", "질문해도", "대화"])
-    return (not has_doc_keyword) and has_casual_marker and len(normalized) <= 40
+    return (not has_doc_keyword) and has_casual_marker and len(normalized) <= 20
 
 
 def _is_document_focused_instruction(instruction: str) -> bool:
@@ -249,6 +331,27 @@ def _sanitize_collection_suffix(value: str) -> str:
     return normalized[:48] or "shared"
 
 
+def _extract_owner_id_from_scope(scope: str) -> Optional[str]:
+    normalized_scope = (scope or "").strip()
+    match = re.match(r"^user_(\d+)_", normalized_scope)
+    if not match:
+        return None
+    return match.group(1)
+
+
+def _resolve_visibility_from_scope(scope: str) -> str:
+    normalized_scope = (scope or "").strip().lower()
+    if normalized_scope.startswith("shared_") or normalized_scope == "shared":
+        return "public"
+    return "private"
+
+
+def _build_hybrid_where(owner_id: Optional[str]) -> dict:
+    if owner_id:
+        return {"$or": [{"visibility": "public"}, {"owner_id": owner_id}]}
+    return {"visibility": "public"}
+
+
 def _get_chroma_http_client():
     if chromadb is None:
         return None
@@ -310,7 +413,9 @@ async def build_rag_context(document_text: str, query: str, user_scope: str, top
         return "", 0
 
     scope = _sanitize_collection_suffix(user_scope)
-    collection_name = f"{CHROMA_COLLECTION}_{scope}"
+    owner_id = _extract_owner_id_from_scope(scope)
+    visibility = _resolve_visibility_from_scope(scope)
+    collection_name = _sanitize_collection_suffix(CHROMA_SHARED_COLLECTION)
     try:
         collection = chroma_client.get_or_create_collection(
             name=collection_name,
@@ -333,29 +438,56 @@ async def build_rag_context(document_text: str, query: str, user_scope: str, top
         ids.append(f"{fingerprint}-{idx}")
         documents.append(chunk)
         embeddings.append(emb)
-        metadatas.append({"scope": scope, "chunk_index": idx})
+        metadatas.append(
+            {
+                "scope": scope,
+                "chunk_index": idx,
+                "owner_id": owner_id or "global",
+                "visibility": visibility,
+                "doc_fingerprint": fingerprint,
+            }
+        )
 
     if not ids:
         # 임베딩 실패 시 최소한 앞부분 문맥 제공
-        fallback_docs = chunks[:2]
+        fallback_docs = chunks[:top_k]
         return "\n\n".join(f"[문맥 {i+1}] {c}" for i, c in enumerate(fallback_docs)), len(fallback_docs)
 
+    # 🔥 이미 저장된 문서인지 확인 (fingerprint 기반)
     try:
-        collection.upsert(ids=ids, documents=documents, embeddings=embeddings, metadatas=metadatas)
+        existing = collection.get(ids=[f"{fingerprint}-0"])
+        if not existing["ids"]:
+            try:
+                collection.upsert(
+                    ids=ids,
+                    documents=documents,
+                    embeddings=embeddings,
+                    metadatas=metadatas
+                )
+            except Exception as exc:
+                print(f"⚠️ Chroma 처리 실패: {str(exc)}")
+                fallback_docs = chunks[:top_k]
+                return "\n\n".join(
+                    f"[문맥 {i+1}] {c}" for i, c in enumerate(fallback_docs)
+                ), len(fallback_docs)
     except Exception as exc:
-        print(f"⚠️ Chroma upsert 실패: {str(exc)}")
-        fallback_docs = chunks[:2]
-        return "\n\n".join(f"[문맥 {i+1}] {c}" for i, c in enumerate(fallback_docs)), len(fallback_docs)
+        print(f"⚠️ Chroma 처리 실패: {str(exc)}")
+        fallback_docs = chunks[:top_k]
+        return "\n\n".join(
+            f"[문맥 {i+1}] {c}" for i, c in enumerate(fallback_docs)
+        ), len(fallback_docs)
 
     query_emb = await _get_ollama_embedding(query)
     if query_emb is None:
-        fallback_docs = chunks[:2]
+        fallback_docs = chunks[:top_k]
         return "\n\n".join(f"[문맥 {i+1}] {c}" for i, c in enumerate(fallback_docs)), len(fallback_docs)
 
     try:
+        where_filter = _build_hybrid_where(owner_id)
         results = collection.query(
             query_embeddings=[query_emb],
             n_results=min(max(top_k, 1), len(ids)),
+            where=where_filter,
             include=["documents", "distances"],
         )
         doc_hits = (results.get("documents") or [[]])[0]
@@ -364,20 +496,42 @@ async def build_rag_context(document_text: str, query: str, user_scope: str, top
         doc_hits = []
 
     if not doc_hits:
-        fallback_docs = chunks[:2]
+        fallback_docs = chunks[:top_k]
         return "\n\n".join(f"[문맥 {i+1}] {c}" for i, c in enumerate(fallback_docs)), len(fallback_docs)
 
     context = "\n\n".join(f"[문맥 {i+1}] {chunk}" for i, chunk in enumerate(doc_hits))
     return context, len(doc_hits)
 
+async def summarize_long_text(text: str, model: str) -> str:
+    """
+    긴 문서를 청크 단위로 나누어 요약 (map-reduce 방식)
+    """
+
+    chunks = _split_text_for_summary(text)
+    if not chunks:
+        return ""
+
+    semaphore = asyncio.Semaphore(SUMMARY_MAX_CONCURRENCY)
+
+    async def _summarize_chunk(chunk: str) -> str:
+        async with semaphore:
+            return await summarize_text(chunk, model)
+
+    tasks = [_summarize_chunk(chunk) for chunk in chunks]
+    partial_summaries = await asyncio.gather(*tasks)
+
+    combined = "\n".join(partial_summaries)
+
+    final_summary = await summarize_text(combined, model)
+
+    return final_summary
 
 async def summarize_text(text: str, model: str = DEFAULT_MODEL) -> str:
-    """
-    Ollama API를 호출하여 텍스트를 요약합니다.
-    """
     MAX_CHARS = 8000
+
+    # 🔥 기존 cut 제거 → 청크 기반 요약으로 변경
     if len(text) > MAX_CHARS:
-        text = text[:MAX_CHARS] + "\n\n[... 이하 내용 생략 ...]"
+        return await summarize_long_text(text, model)
 
     prompt = f"""다음 PDF 문서 내용을 한국어로 명확하고 간결하게 요약해줘.
 
@@ -399,8 +553,12 @@ async def summarize_text(text: str, model: str = DEFAULT_MODEL) -> str:
                 json={
                     "model": model,
                     "prompt": prompt,
+                    "options": {
+                        "temperature": CHAT_TEMPERATURE,
+                        "top_p": CHAT_TOP_P,
+                    },
                     "stream": False,
-                },
+                }   
             )
 
             if response.status_code != 200:
@@ -427,7 +585,9 @@ async def summarize_text_stream(text: str, model: str = DEFAULT_MODEL) -> AsyncI
     """Ollama 스트리밍 응답을 토큰 단위 문자열로 반환합니다."""
     MAX_CHARS = 8000
     if len(text) > MAX_CHARS:
-        text = text[:MAX_CHARS] + "\n\n[... 이하 내용 생략 ...]"
+        result = await summarize_long_text(text, model)
+        yield result
+        return
 
     prompt = f"""다음 PDF 문서 내용을 한국어로 명확하고 간결하게 요약해줘.
 
@@ -503,7 +663,7 @@ async def summarize_with_instruction(
     """사용자 지시를 반영해 문서 텍스트를 요약/정리합니다."""
     MAX_CHARS = _CHAT_INPUT_MAX_CHARS
     if len(text) > MAX_CHARS:
-        text = text[:MAX_CHARS] + "\n\n[... 이하 내용 생략 ...]"
+        text = await summarize_long_text(text, model)
 
     clean_instruction = (instruction or "핵심 내용을 짧게 요약해줘").strip()
     if not clean_instruction:
@@ -520,7 +680,7 @@ async def summarize_with_instruction(
 
     rag_context = ""
     rag_count = 0
-    if use_rag and is_document_focused:
+    if use_rag and (is_document_focused or _is_code_request(clean_instruction)):
         rag_context, rag_count = await build_rag_context(
             document_text=text,
             query=clean_instruction,
@@ -593,7 +753,7 @@ async def summarize_with_instruction_stream(
     """사용자 지시 기반 대화형 요약을 토큰 스트리밍으로 반환합니다."""
     MAX_CHARS = _CHAT_INPUT_MAX_CHARS
     if len(text) > MAX_CHARS:
-        text = text[:MAX_CHARS] + "\n\n[... 이하 내용 생략 ...]"
+        text = await summarize_long_text(text, model)
 
     clean_instruction = (instruction or "핵심 내용을 짧게 요약해줘").strip()
     if not clean_instruction:
@@ -611,7 +771,7 @@ async def summarize_with_instruction_stream(
 
     rag_context = ""
     rag_count = 0
-    if use_rag and is_document_focused:
+    if use_rag and (is_document_focused or _is_code_request(clean_instruction)):
         rag_context, rag_count = await build_rag_context(
             document_text=text,
             query=clean_instruction,
@@ -741,33 +901,16 @@ async def _translate_long_text(text: str, model: str) -> str:
     """
     CHUNK_SIZE = 4000
     OVERLAP = 200
-    
-    chunks = []
-    start = 0
-    
-    while start < len(text):
-        end = min(start + CHUNK_SIZE, len(text))
-        
-        # 문장 경계에서 자르기 시도
-        if end < len(text):
-            last_period = text.rfind('.', start, end)
-            last_newline = text.rfind('\n', start, end)
-            boundary = max(last_period, last_newline)
-            if boundary > start + CHUNK_SIZE // 2:
-                end = boundary + 1
-        
-        chunk = text[start:end]
-        chunks.append(chunk)
 
-        # 마지막 청크를 추가한 뒤에는 루프를 종료해야 중복/무한 루프를 방지할 수 있습니다.
-        if end >= len(text):
-            break
+    chunks = _split_text_with_progress_guard(
+        text=text,
+        chunk_size=CHUNK_SIZE,
+        overlap=OVERLAP,
+        min_chunk_ratio=0.5,
+    )
 
-        next_start = max(0, end - OVERLAP)
-        # 경계 조건에서 start가 전진하지 못하면 안전하게 종료합니다.
-        if next_start <= start:
-            break
-        start = next_start
+    if not chunks and text:
+        chunks = [text]
     
     translated_chunks = []
     for i, chunk in enumerate(chunks):
@@ -796,23 +939,14 @@ async def translate_to_english_stream(text: str, model: str = DEFAULT_MODEL) -> 
     if len(text) > MAX_CHARS:
         CHUNK_SIZE = 4000
         OVERLAP = 200
-        chunks = []
-        start = 0
-        while start < len(text):
-            end = min(start + CHUNK_SIZE, len(text))
-            if end < len(text):
-                last_period = text.rfind('.', start, end)
-                last_newline = text.rfind('\n', start, end)
-                boundary = max(last_period, last_newline)
-                if boundary > start + CHUNK_SIZE // 2:
-                    end = boundary + 1
-            chunks.append(text[start:end])
-            if end >= len(text):
-                break
-            next_start = max(0, end - OVERLAP)
-            if next_start <= start:
-                break
-            start = next_start
+        chunks = _split_text_with_progress_guard(
+            text=text,
+            chunk_size=CHUNK_SIZE,
+            overlap=OVERLAP,
+            min_chunk_ratio=0.5,
+        )
+        if not chunks:
+            chunks = [text]
         for i, chunk in enumerate(chunks):
             if i > 0:
                 yield "\n\n"
@@ -869,16 +1003,38 @@ async def _stream_translate_chunk(text: str, model: str) -> AsyncIterator[str]:
         raise HTTPException(status_code=500, detail=f"번역 스트리밍 중 오류 발생: {str(e)}")
 
 
+# LLM 선택 드롭다운에서 제외할 임베딩 전용 모델 키워드
+_EMBEDDING_MODEL_KEYWORDS = (
+    "embed",
+    "embedding",
+    "nomic",
+    "all-minilm",
+    "bge-",
+    "e5-",
+    "gte-",
+)
+
+
+def _is_embedding_model(name: str) -> bool:
+    lower = name.lower()
+    return any(kw in lower for kw in _EMBEDDING_MODEL_KEYWORDS)
+
+
 async def get_available_models() -> list:
     """
-    Ollama에 설치된 모델 목록을 반환합니다.
+    Ollama에 설치된 모델 목록 중 LLM(생성 모델)만 반환합니다.
+    임베딩 전용 모델(nomic-embed-text 등)은 제외됩니다.
     """
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
             if response.status_code == 200:
                 data = response.json()
-                return [m["name"] for m in data.get("models", [])]
+                return [
+                    m["name"]
+                    for m in data.get("models", [])
+                    if not _is_embedding_model(m["name"])
+                ]
             return []
     except Exception:
         return []
@@ -934,8 +1090,12 @@ async def categorize_document(title: str = "", model: str = DEFAULT_MODEL) -> st
                 json={
                     "model": model,
                     "prompt": prompt,
+                    "options": {
+                        "temperature": 0.0,
+                        "top_p": 0.7,
+                    },
                     "stream": False,
-                },
+                }
             )
 
             if response.status_code != 200:

@@ -209,9 +209,16 @@ export const usePdfSummary = () => {
     setStreamingSummary("");
     setExtractionProgress({ mode: null, current: 0, total: 0 });
     setTranslations({ original: null, summary: null });
+    // [osj | 2026-03-24] fetch 전에 즉시 progress 바 표시 (OCR 모델 초기화 중 상태)
+    const isOcr = (selectedOcrModel || "pypdf2").toLowerCase() !== "pypdf2";
+    if (isOcr) {
+      setStatus({ type: "info", msg: "OCR 모델 초기화 중..." });
+      setExtractionProgress({ mode: "ocr", current: 0, total: 0 });
+    }
     try {
       const userDbId = localStorage.getItem("userDbId");
       if (!userDbId) {
+        setExtractionProgress({ mode: null, current: 0, total: 0 });
         setStatus({
           type: "error",
           msg: "사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.",
@@ -242,11 +249,13 @@ export const usePdfSummary = () => {
             errorMsg,
           );
         } catch (_) {}
+        toast.error(errorMsg);
         setStatus({ type: "error", msg: errorMsg });
         return;
       }
 
       if (!res.body) {
+        toast.error("스트리밍 응답 본문이 없습니다.");
         setStatus({ type: "error", msg: "스트리밍 응답 본문이 없습니다." });
         return;
       }
@@ -285,6 +294,16 @@ export const usePdfSummary = () => {
               current: 0,
               total: event.total_pages || 0,
             });
+            if (event.ocr_mode) {
+              // [osj | 2026-03-24] start 이벤트 수신 시 카드 내 status 텍스트 표시
+              setStatus({
+                type: "info",
+                msg:
+                  event.total_pages > 0
+                    ? `OCR 분석 중... (0 / ${event.total_pages} 페이지)`
+                    : "OCR 분석 중...",
+              });
+            }
           } else if (event.type === "page") {
             setExtractionProgress({
               mode: "page",
@@ -292,10 +311,15 @@ export const usePdfSummary = () => {
               total: event.total || 0,
             });
           } else if (event.type === "ocr_progress") {
+            // [osj | 2026-03-24] ocr_progress 이벤트로 progress 바 + status 텍스트 동시 업데이트
             setExtractionProgress({
               mode: "ocr_page",
               current: event.page || 0,
               total: event.total || 0,
+            });
+            setStatus({
+              type: "info",
+              msg: `${event.page || 0} / ${event.total || 0} 페이지 OCR 분석 중...`,
             });
           } else if (event.type === "chunk_start") {
             setExtractionProgress({
@@ -313,13 +337,12 @@ export const usePdfSummary = () => {
             finalResult = event;
             setExtractionProgress({ mode: null, current: 0, total: 0 });
           } else if (event.type === "error") {
-            setStatus({
-              type: "error",
-              msg: normalizeErrorMessage(
-                event.detail,
-                "추출 중 오류가 발생했습니다.",
-              ),
-            });
+            const errMsg = normalizeErrorMessage(
+              event.detail,
+              "추출 중 오류가 발생했습니다.",
+            );
+            toast.error(errMsg);
+            setStatus({ type: "error", msg: errMsg });
             setExtractionProgress({ mode: null, current: 0, total: 0 });
           }
         }
@@ -332,6 +355,7 @@ export const usePdfSummary = () => {
       }
     } catch (err) {
       console.error("Fetch Error:", err);
+      toast.error("서버 연결 실패: " + err.message);
       setStatus({ type: "error", msg: "서버 연결 실패: " + err.message });
       setExtractionProgress({ mode: null, current: 0, total: 0 });
     } finally {

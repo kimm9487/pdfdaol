@@ -14,6 +14,7 @@ FROM base AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
+    git \
     python3 \
     python3-venv \
     python3-distutils \
@@ -22,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python3 -m venv /opt/venv
 RUN /opt/venv/bin/pip install --upgrade pip setuptools wheel
 
-# 1. torch (CUDA 12.1 wheel)
+# 1. torch (CUDA 12.1 wheel) — GLM-OCR과 공유
 RUN /opt/venv/bin/pip install \
     torch==2.1.0 \
     torchvision==0.16.0 \
@@ -33,7 +34,6 @@ RUN /opt/venv/bin/pip install paddlepaddle-gpu==2.6.1 \
     -f https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html
 
 # 3. easyocr (--no-deps로 torch 재설치 방지)
-RUN /opt/venv/bin/pip install easyocr==1.7.1 --no-deps
 RUN /opt/venv/bin/pip install easyocr==1.7.1 --no-deps && \
     /opt/venv/bin/pip install ninja python-bidi
 

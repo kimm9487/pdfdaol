@@ -12,8 +12,10 @@ from services.ocr import extract_with_model, list_available_ocr_models
 
 
 PDF_ONLY_MODELS = {"pypdf2"}
+# glmocr 은 이미지/PDF 기반이므로 doc/docx/hwpx 는 LibreOffice → PDF 변환 후 처리
+IMAGE_NATIVE_MODELS = {"glmocr"}
 PDF_EXTENSIONS = {".pdf"}
-OCR_DOC_EXTENSIONS = {".doc", ".docx", ".hwpx"}
+OCR_DOC_EXTENSIONS = {".doc", ".docx", ".hwpx", ".hwp"}
 OCR_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff", ".gif"}
 ALLOWED_OCR_EXTENSIONS = PDF_EXTENSIONS | OCR_DOC_EXTENSIONS | OCR_IMAGE_EXTENSIONS
 
@@ -227,7 +229,7 @@ async def extract_text_from_pdf(file_bytes: bytes, filename: str, ocr_model: str
             detail={
                 "message": "pypdf2 모델은 PDF 파일만 지원합니다.",
                 "reason": "잘못된 파일 형식",
-                "suggestion": "OCR 모델(tesseract/easyocr/paddleocr)을 선택하면 doc/docx/hwpx도 처리할 수 있습니다."
+                "suggestion": "OCR 모델(tesseract/easyocr/paddleocr/glmocr)을 선택하면 doc/docx/hwpx도 처리할 수 있습니다."
             },
         )
 
@@ -243,6 +245,21 @@ async def extract_text_from_pdf(file_bytes: bytes, filename: str, ocr_model: str
 
     if extension == ".hwp":
         if _is_hwp_ole(file_bytes):
+            # glmocr 은 이미지 기반 → LibreOffice 로 PDF 변환 후 처리
+            if model in IMAGE_NATIVE_MODELS:
+                try:
+                    pdf_bytes = _convert_document_to_pdf_bytes(file_bytes, filename, forced_suffix=".doc")
+                    result = await extract_with_model(
+                        file_bytes=pdf_bytes,
+                        filename=f"{Path(filename).stem}.pdf",
+                        ocr_model=model,
+                    )
+                    result["source_file"] = filename
+                    result["converted_from"] = ".hwp"
+                    result["note"] = "HWP → PDF 변환 후 GLM-OCR 처리"
+                    return result
+                except HTTPException:
+                    pass  # 변환 실패 시 텍스트 직접 추출로 폴백
             text = _extract_text_from_hwp_ole_bytes(file_bytes)
             return {
                 "text": text,
@@ -276,7 +293,8 @@ async def extract_text_from_pdf(file_bytes: bytes, filename: str, ocr_model: str
 
     # HWPX
     if extension == ".hwpx":
-        if file_bytes.startswith(b"PK"):
+        # glmocr 은 이미지 기반 → 직접 텍스트 추출 경로를 건너뛰고 항상 PDF 변환
+        if model not in IMAGE_NATIVE_MODELS and file_bytes.startswith(b"PK"):
             try:
                 text = _extract_text_from_hwpx_bytes(file_bytes)
                 return {
@@ -320,23 +338,10 @@ async def extract_text_from_pdf(file_bytes: bytes, filename: str, ocr_model: str
 
     # DOCX
     if extension == ".docx":
-        try:
-            text = _extract_text_from_docx_bytes(file_bytes)
-            return {
-                "text": text,
-                "total_pages": 1,
-                "successful_pages": 1,
-                "processing_time": 0.0,
-                "char_count": len(text),
-                "ocr_model": model,
-                "source_file": filename,
-                "converted_from": extension,
-                "note": "DOCX 직접 텍스트 추출 경로 사용",
-            }
-        except HTTPException:
-            # HWP OLE 형식인 경우 직접 처리
-            if _is_hwp_ole(file_bytes):
-                text = _extract_text_from_hwp_ole_bytes(file_bytes)
+        # glmocr 은 이미지 기반 → 직접 텍스트 추출 경로를 건너뛰고 항상 PDF 변환
+        if model not in IMAGE_NATIVE_MODELS:
+            try:
+                text = _extract_text_from_docx_bytes(file_bytes)
                 return {
                     "text": text,
                     "total_pages": 1,
@@ -345,36 +350,96 @@ async def extract_text_from_pdf(file_bytes: bytes, filename: str, ocr_model: str
                     "char_count": len(text),
                     "ocr_model": model,
                     "source_file": filename,
-                    "converted_from": ".hwp",
-                    "note": "확장자가 .docx이나 실제 HWP 파일 - 직접 텍스트 추출",
+                    "converted_from": extension,
+                    "note": "DOCX 직접 텍스트 추출 경로 사용",
                 }
+            except HTTPException:
+                # HWP OLE 형식인 경우 직접 처리
+                if _is_hwp_ole(file_bytes):
+                    text = _extract_text_from_hwp_ole_bytes(file_bytes)
+                    return {
+                        "text": text,
+                        "total_pages": 1,
+                        "successful_pages": 1,
+                        "processing_time": 0.0,
+                        "char_count": len(text),
+                        "ocr_model": model,
+                        "source_file": filename,
+                        "converted_from": ".hwp",
+                        "note": "확장자가 .docx이나 실제 HWP 파일 - 직접 텍스트 추출",
+                    }
 
-            forced_suffix = ".docx"
-            if file_bytes.startswith(b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"):
-                forced_suffix = ".doc"
-            elif not file_bytes.startswith(b"PK"):
-                raise HTTPException(
-                    status_code=422,
-                    detail=(
-                        "DOCX 파일 형식이 올바르지 않습니다. "
-                        "확장자는 .docx지만 실제 파일이 OOXML(zip) 형식이 아닙니다. "
-                        "원본 파일 형식(.doc/.hwp/.pdf 등)을 확인해 주세요."
-                    ),
-                )
+        # glmocr 이거나 직접 추출 실패 시 → LibreOffice 변환 경로
+        if _is_hwp_ole(file_bytes):
+            # glmocr: HWP OLE → LibreOffice PDF 변환
+            if model in IMAGE_NATIVE_MODELS:
+                try:
+                    pdf_bytes = _convert_document_to_pdf_bytes(file_bytes, filename, forced_suffix=".doc")
+                    result = await extract_with_model(
+                        file_bytes=pdf_bytes,
+                        filename=f"{Path(filename).stem}.pdf",
+                        ocr_model=model,
+                    )
+                    result["source_file"] = filename
+                    result["converted_from"] = ".hwp"
+                    result["note"] = "확장자가 .docx이나 실제 HWP 파일 - PDF 변환 후 GLM-OCR 처리"
+                    return result
+                except HTTPException:
+                    pass
+            text = _extract_text_from_hwp_ole_bytes(file_bytes)
+            return {
+                "text": text,
+                "total_pages": 1,
+                "successful_pages": 1,
+                "processing_time": 0.0,
+                "char_count": len(text),
+                "ocr_model": model,
+                "source_file": filename,
+                "converted_from": ".hwp",
+                "note": "확장자가 .docx이나 실제 HWP 파일 - 직접 텍스트 추출",
+            }
 
-            pdf_bytes = _convert_document_to_pdf_bytes(file_bytes, filename, forced_suffix=forced_suffix)
-            result = await extract_with_model(
-                file_bytes=pdf_bytes,
-                filename=f"{Path(filename).stem}.pdf",
-                ocr_model=model,
+        forced_suffix = ".docx"
+        if file_bytes.startswith(b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"):
+            forced_suffix = ".doc"
+        elif not file_bytes.startswith(b"PK"):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "DOCX 파일 형식이 올바르지 않습니다. "
+                    "확장자는 .docx지만 실제 파일이 OOXML(zip) 형식이 아닙니다. "
+                    "원본 파일 형식(.doc/.hwp/.pdf 등)을 확인해 주세요."
+                ),
             )
-            result["source_file"] = filename
-            result["converted_from"] = extension
-            result["note"] = "DOCX 직접 추출 실패로 변환 경로 사용"
-            return result
+
+        pdf_bytes = _convert_document_to_pdf_bytes(file_bytes, filename, forced_suffix=forced_suffix)
+        result = await extract_with_model(
+            file_bytes=pdf_bytes,
+            filename=f"{Path(filename).stem}.pdf",
+            ocr_model=model,
+        )
+        result["source_file"] = filename
+        result["converted_from"] = extension
+        result["note"] = "DOCX 직접 추출 실패로 변환 경로 사용"
+        return result
 
     # doc 등 나머지 문서 변환 경로
     if _is_hwp_ole(file_bytes):
+        # glmocr 은 이미지 기반 → LibreOffice PDF 변환 후 처리
+        if model in IMAGE_NATIVE_MODELS:
+            try:
+                pdf_bytes = _convert_document_to_pdf_bytes(file_bytes, filename, forced_suffix=".doc")
+                result = await extract_with_model(
+                    file_bytes=pdf_bytes,
+                    filename=f"{Path(filename).stem}.pdf",
+                    ocr_model=model,
+                )
+                result["source_file"] = filename
+                result["converted_from"] = ".hwp"
+                result["note"] = "확장자가 .doc이나 실제 HWP 파일 - PDF 변환 후 GLM-OCR 처리"
+                return result
+            except HTTPException:
+                pass  # 변환 실패 시 텍스트 직접 추출로 폴백
         text = _extract_text_from_hwp_ole_bytes(file_bytes)
         return {
             "text": text,

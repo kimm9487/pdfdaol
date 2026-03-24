@@ -4,6 +4,7 @@ import time
 import PyPDF2
 from fastapi import HTTPException
 
+from .markdown_layout import to_layout_markdown
 from .types import OcrResult
 
 
@@ -29,7 +30,7 @@ async def extract_text(contents: bytes, filename: str) -> OcrResult:
         try:
             page_text = page.extract_text()
             if page_text and page_text.strip():
-                extracted_text += f"\n[페이지 {page_num + 1}]\n{page_text}"
+                extracted_text += f"\n[페이지 {page_num + 1}]\n{to_layout_markdown(page_text)}"
                 successful_pages += 1
         except Exception:
             continue

@@ -140,6 +140,7 @@ const ChatSummary = () => {
   const [loadingChat, setLoadingChat] = useState(false);
   const [useRag, setUseRag] = useState(true);
   const [useLora, setUseLora] = useState(false);
+  const [expandedFileMessages, setExpandedFileMessages] = useState({});
   const [isGlobalDragging, setIsGlobalDragging] = useState(false);
   const [waitingFirstToken, setWaitingFirstToken] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -259,6 +260,13 @@ const ChatSummary = () => {
     });
   };
 
+  const toggleFileMessage = (messageKey) => {
+    setExpandedFileMessages((prev) => ({
+      ...prev,
+      [messageKey]: !prev[messageKey],
+    }));
+  };
+
   const handleExtract = async () => {
     if (!selectedFiles.length) {
       appendMessage("assistant", "먼저 PDF 파일을 선택해 주세요.");
@@ -314,6 +322,7 @@ const ChatSummary = () => {
           type: "file",
           fileName: data.filename || file.name,
           fileSize: formatFileSize(file.size),
+          extractedText: extracted,
         });
       }
 
@@ -617,13 +626,29 @@ const ChatSummary = () => {
             <div key={`${msg.role}-${idx}`} className={`bubble ${msg.role}`}>
               {msg.content}
               {msg.meta?.type === "file" && (
-                <div className="message-file-card">
-                  <div className="message-file-icon" aria-hidden="true">📄</div>
-                  <div className="message-file-meta">
-                    <div className="message-file-name">{msg.meta.fileName}</div>
-                    <div className="message-file-size">{msg.meta.fileSize}</div>
+                <>
+                  <div className="message-file-card">
+                    <div className="message-file-icon" aria-hidden="true">📄</div>
+                    <div className="message-file-meta">
+                      <div className="message-file-name">{msg.meta.fileName}</div>
+                      <div className="message-file-size">{msg.meta.fileSize}</div>
+                    </div>
                   </div>
-                </div>
+                  {msg.meta.extractedText && (
+                    <div className="message-file-detail">
+                      <button
+                        type="button"
+                        className="message-file-toggle-btn"
+                        onClick={() => toggleFileMessage(`msg-${idx}`)}
+                      >
+                        {expandedFileMessages[`msg-${idx}`] ? "원문 접기 ▲" : "원문 펼치기 ▼"}
+                      </button>
+                      {expandedFileMessages[`msg-${idx}`] && (
+                        <div className="message-file-text">{msg.meta.extractedText}</div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))}

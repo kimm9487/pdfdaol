@@ -6,6 +6,7 @@ from fastapi import HTTPException
 import numpy as np
 
 from .image_preprocess import preprocess_for_ocr
+from .markdown_layout import to_layout_markdown
 from .pdf_page_renderer import render_input_to_images
 from .types import OcrResult
 
@@ -121,7 +122,7 @@ async def extract_text(contents: bytes, filename: str, lang: str = "korean") -> 
                 page_text = "\n".join(retry_lines).strip()
 
             if page_text:
-                parts.append(f"[페이지 {idx}]\n{page_text}")
+                parts.append(f"[페이지 {idx}]\n{to_layout_markdown(page_text)}")
                 successful_pages += 1
         except Exception as exc:
             if first_error is None:
