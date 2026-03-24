@@ -1,4 +1,4 @@
-// src/components/WebSocketChat.jsx
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from "react";
 import WebSocketChatWindow from "./websocketchat/WebSocketChatWindow";
 import "./websocketchat/WebSocketChat.css";
@@ -17,13 +17,12 @@ export default function WebSocketChat() {
   const sessionToken = localStorage.getItem("session_token");
   const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
 
-  // localStorage 키 생성 함수 → 여기로 이동 (최상단 선언)
   const getStorageKey = () =>
     userId && sessionToken
       ? `chat_messages_user_${userId}_sess_${sessionToken.slice(-12)}`
       : null;
 
-  // ==================== 로그인 직후 백그라운드 연결 (핵심) ====================
+  // ==================== 로그인 직후 백그라운드 연결 ====================
   useEffect(() => {
     if (!isLoggedIn || !sessionToken || !userId) {
       if (socket) socket.disconnect();
@@ -34,32 +33,22 @@ export default function WebSocketChat() {
       return;
     }
 
-    const SOCKET_URL =
-      import.meta.env.VITE_BACKEND_TARGET ||
-      (import.meta.env.DEV ? "http://localhost:8000" : "http://backend:8000");
-
-    console.log("[Socket] 연결 시도 URL →", SOCKET_URL);
-
-    const newSocket = io(SOCKET_URL, {
-      path: "/socket.io/",
+    // 프록시를 통한 동적 연결 (현재 페이지 호스트 기반)
+    const newSocket = io(window.location.origin, {
+      path: "/socket.io",
       transports: ["websocket", "polling"],
-      upgrade: true,
-      forceNew: false,
       reconnection: true,
       reconnectionAttempts: 30,
-      reconnectionDelay: 3000,
-      reconnectionDelayMax: 15000,
-      timeout: 45000,
+      reconnectionDelay: 2000,
+      timeout: 30000,
       auth: { session_token: sessionToken },
       withCredentials: true,
     });
 
+    console.log("[Socket] 연결 시도:", window.location.origin + "/socket.io");
+
     newSocket.on("connect", () => {
       console.log("[Background Socket] 연결 성공!");
-
-      newSocket.emit("authenticate", {
-        session_token: sessionToken,
-      });
       setIsConnected(true);
     });
 
@@ -69,45 +58,36 @@ export default function WebSocketChat() {
       setIsConnected(false);
     });
 
-    // 과거 메시지 초기 로드 (재접속/첫 접속 시)
     newSocket.on("initMessages", (pastMessages) => {
       if (Array.isArray(pastMessages) && pastMessages.length > 0) {
-        setMessages(pastMessages);
+        // 초기 메시지는 모두 읽음 처리
+        const messagesWithReadStatus = pastMessages.map(msg => ({
+          ...msg,
+          isRead: msg.isRead !== undefined ? msg.isRead : true
+        }));
+        setMessages(messagesWithReadStatus);
         const key = getStorageKey();
-        if (key) localStorage.setItem(key, JSON.stringify(pastMessages));
-        console.log(`[Socket] 과거 메시지 ${pastMessages.length}개 로드`);
+        if (key) localStorage.setItem(key, JSON.stringify(messagesWithReadStatus));
       }
     });
 
-    // 실시간 메시지 수신
     newSocket.on("receiveMessage", (payload) => {
-      console.log("RAW:", payload);
-
       const msg = payload?.content ? payload : payload?.[0] || payload;
-
-      // ★★★ 디버깅 로그 2 ★★★
-      console.log("[FRONT DEBUG] 파싱된 msg:", msg);
-
+      const currentUserId = localStorage.getItem("userId");
+      const isMyMessage = String(msg.senderId || msg.sender || msg.userId) === String(currentUserId);
+      
       const safeMsg = {
         senderId: msg.senderId || msg.sender || msg.userId,
         content: msg.content || msg.message || msg.text,
-        timestamp: msg.timestamp || msg.createdAt || new Date().toISOString(),
+        timestamp: msg.timestamp || new Date().toISOString(),
         isSystem: msg.isSystem || false,
+        isRead: isMyMessage, // 내 메시지는 기본 읽음, 상대 메시지는 읽지 않음
       };
-
-      // ★★★ 디버깅 로그 3 ★★★
-      console.log("[FRONT DEBUG] 최종 safeMsg:", safeMsg);
-
       setMessages((prev) => [...prev, safeMsg]);
     });
 
-    // 온라인 유저 목록 실시간 업데이트
     newSocket.on("onlineUsers", (users) => {
       setOnlineUsers(users || []);
-    });
-
-    newSocket.on("connect_error", (err) => {
-      console.error("[Background Socket] 연결 실패:", err.message);
     });
 
     setSocket(newSocket);
@@ -116,20 +96,16 @@ export default function WebSocketChat() {
       newSocket.disconnect();
     };
   }, [isLoggedIn, sessionToken, userId]);
-  // =====================================================================
 
-  // F5 새로고침 시 localStorage 복구 (initMessages가 없으면 이걸로 fallback)
+  // F5 새로고침 시 localStorage 복구
   useEffect(() => {
     if (!isLoggedIn || !userId || !sessionToken) return;
-
     const key = getStorageKey();
     const saved = localStorage.getItem(key);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setMessages(parsed);
-        }
+        if (Array.isArray(parsed)) setMessages(parsed);
       } catch (e) {
         console.error("[LocalStorage] 메시지 파싱 실패:", e);
       }
@@ -147,30 +123,38 @@ export default function WebSocketChat() {
     }
   }, [isLoggedIn]);
 
-  const handleSendMessage = (text) => {
-    if (!text?.trim()) return false;
-    console.log("[Chat] 메시지 전송 시도:", text);
-    const success = socket?.emit("sendMessage", { content: text });
-    console.log(
-      "[Chat] emit 결과:",
-      success ? "성공" : "실패 - 소켓 연결 상태:",
-      socket?.connected,
-    );
-    return success;
-  };
-
-  // 채팅창 열릴 때 unread 초기화
+  // ==================== 안 읽은 배지 로직 (카톡처럼) ====================
+  // 채팅창 열 때: 모든 메시지를 읽음으로 표시
   useEffect(() => {
     if (showChat) {
+      setMessages((prev) =>
+        prev.map((msg) => ({ ...msg, isRead: true }))
+      );
       setUnreadCount(0);
     }
   }, [showChat]);
+
+  // 메시지 변경 시: 읽지 않은 메시지 개수 계산
+  useEffect(() => {
+    if (!showChat) {
+      // 채팅창이 닫혀 있을 때만 안읽음 카운트 계산
+      const count = messages.filter(
+        (msg) => !msg.isSystem && !msg.isRead
+      ).length;
+      setUnreadCount(count);
+    }
+  }, [messages, showChat]);
+
+  const handleSendMessage = (text) => {
+    if (!text?.trim() || !socket?.connected) return false;
+    socket.emit("sendMessage", { content: text });
+    return true;
+  };
 
   if (!isLoggedIn) return null;
 
   return (
     <>
-      {/* 플로팅 버튼 - 항상 보임 + unread 실시간 */}
       <button
         className="floating-chat-btn relative"
         onClick={() => setShowChat((prev) => !prev)}
@@ -178,13 +162,15 @@ export default function WebSocketChat() {
       >
         💬
         {unreadCount > 0 && (
-          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-md border-2 border-white animate-pulse">
+          <span
+            key={`unread-${unreadCount}`}
+            className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-md border-2 border-white animate-pulse"
+          >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
-      {/* 채팅 패널 */}
       {showChat && (
         <div className="floating-chat-panel">
           <div className="chat-header">
@@ -199,7 +185,6 @@ export default function WebSocketChat() {
               isConnected={isConnected}
               onlineUsers={onlineUsers}
               connectionError={connectionError}
-              onUnreadCountChange={setUnreadCount}
               isOpen={showChat}
             />
           </div>
@@ -208,25 +193,3 @@ export default function WebSocketChat() {
     </>
   );
 }
-
-// 원본 샘플
-//   {/* ← 여기로 Floating Chat 옮김 */}
-//   <button
-//     className="floating-chat-btn"
-//     onClick={() => setShowChat(!showChat)}
-//     title="실시간 채팅 열기"
-//   >
-//     💬
-//   </button>
-
-//   {showChat && (
-//     <div className="floating-chat-panel">
-//       <div className="chat-header">
-//         <h3>실시간 채팅</h3>
-//         <button onClick={() => setShowChat(false)}>✕</button>
-//       </div>
-//       <div className="chat-body">
-//         <WebSocketChatWindow />
-//       </div>
-//     </div>
-//   )}
