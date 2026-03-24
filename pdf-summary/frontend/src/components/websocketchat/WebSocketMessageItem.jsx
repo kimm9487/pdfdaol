@@ -4,6 +4,7 @@ import { format } from "date-fns";
 export default function MessageBubble({ message }) {
   const {
     senderId,
+    senderName,
     content,
     timestamp,
     isSystem,
@@ -23,13 +24,18 @@ export default function MessageBubble({ message }) {
     );
   }
 
-  const currentUserId = localStorage.getItem("userId");
+  const currentUserId = localStorage.getItem("userDbId") || localStorage.getItem("userId");
   const isMe = String(senderId) === String(currentUserId);
   const timeStr = timestamp ? format(new Date(timestamp), "HH:mm:ss") : "";
+  const rawLabel = (senderName || "").slice(0, 2).toUpperCase();
+  const avatarLabel = rawLabel && !/^\d+$/.test(rawLabel) ? rawLabel : "?";
+  const senderDisplayName = senderName && !/^\d+$/.test(senderName) ? senderName : "알 수 없음";
 
   return (
     <div
-      className={`flex items-end gap-2 group ${
+      className={`chat-msg-row flex items-end gap-2 group ${
+        isMe ? "chat-msg-me" : "chat-msg-other"
+      } ${
         isMe ? "justify-end" : "justify-start"
       } ${isContinuous ? "mt-0.5" : "mt-4"}`}
     >
@@ -37,8 +43,11 @@ export default function MessageBubble({ message }) {
       {!isMe && showSenderInfo && (
         <div className="flex-shrink-0">
           {/* 여기에 실제 프로필 사진 넣기 (나중엔 백엔드에서 photoUrl 받아오면 좋음) */}
-          <div className="w-9 h-9 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-white text-sm font-medium">
-            {senderId?.slice(0, 2).toUpperCase() || "?"}
+          <div
+            className="w-9 h-9 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-white text-sm font-medium"
+            title={senderDisplayName}
+          >
+            {avatarLabel}
           </div>
         </div>
       )}
@@ -52,7 +61,7 @@ export default function MessageBubble({ message }) {
         {/* 상대방일 때만 이름 표시 (연속 메시지면 숨김) */}
         {!isMe && showSenderInfo && (
           <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 px-1">
-            {senderId}
+            {senderDisplayName}
           </div>
         )}
 

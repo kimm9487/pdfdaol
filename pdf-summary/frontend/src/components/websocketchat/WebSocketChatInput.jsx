@@ -1,13 +1,27 @@
 // src/components/websocketchat/WebSocketChatInput.jsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-export default function ChatInput({ onSend, disabled }) {
+export default function ChatInput({ onSend, disabled, onTypingChange }) {
   const [input, setInput] = useState('');
+
+  // 입력값이 남아 있는 동안 주기적으로 typing 상태를 유지한다.
+  useEffect(() => {
+    if (!onTypingChange || !input.trim()) return;
+
+    const intervalId = setInterval(() => {
+      onTypingChange(input);
+    }, 2300);
+
+    return () => clearInterval(intervalId);
+  }, [input, onTypingChange]);
 
   const handleSubmit = () => {
     if (!input.trim()) return;
     const success = onSend(input);
-    if (success) setInput('');
+    if (success) {
+      setInput('');
+      if (onTypingChange) onTypingChange('');
+    }
   };
 
   return (
@@ -15,7 +29,11 @@ export default function ChatInput({ onSend, disabled }) {
       <div className="flex items-center gap-3 max-w-4xl mx-auto">
         <input
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            const nextValue = e.target.value;
+            setInput(nextValue);
+            if (onTypingChange) onTypingChange(nextValue);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();

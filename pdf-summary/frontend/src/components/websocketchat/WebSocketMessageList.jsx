@@ -5,7 +5,6 @@ import DateDivider from "./WebSocketDateSeparator";
 
 export default function MessageList({ messages, bottomRef }) {
   const groupedItems = useMemo(() => {
-    console.log("📦 MessageList messages:", messages);
     const items = [];
     let prevDateKey = null;
 

@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { useEffect, useRef } from "react";
 import ChatHeader from "./WebSocketChatHeader";
 import MessageList from "./WebSocketMessageList";
@@ -26,9 +25,17 @@ export default function WebSocketChatWindow({
   onlineUsers = [],
   connectionError = null,
   isOpen = false,
+  typingUsers = [],
+  onTypingChange,
 }) {
   const bottomRef = useRef(null);
-  const userId = localStorage.getItem("userId");
+  const userNameById = Object.fromEntries(
+    onlineUsers.map((user) => [String(user.userId || user.id || ""), user.name || ""])
+  );
+  const decoratedMessages = messages.map((message) => ({
+    ...message,
+    senderName: userNameById[String(message.senderId)] || message.senderName || "",
+  }));
 
   // 자동 스크롤
   useEffect(() => {
@@ -42,28 +49,32 @@ export default function WebSocketChatWindow({
     return onSend(text);
   };
 
+  const typingText = (() => {
+    if (!typingUsers.length) return "";
+    if (typingUsers.length === 1) {
+      const first = typingUsers[0].name || typingUsers[0].userId;
+      return `${first} 입력중입니다`;
+    }
+    const first = typingUsers[0].name || typingUsers[0].userId;
+    return `${first} 외 ${typingUsers.length - 1}명 입력중입니다`;
+  })();
+
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-950 relative">
       <ChatHeader isConnected={isConnected} onlineCount={onlineUsers.length} />
 
-      {connectionError && (
-        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 m-4 rounded">
-          연결 오류: {connectionError}
-        </div>
-      )}
-
       {onlineUsers.length > 0 && (
         <div className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-sm border-b flex gap-2 overflow-x-auto pb-3">
           {onlineUsers.map((u, i) => {
-            const uid = u.userId || u.id || u.name || "";
-            const initials = uid.slice(0, 2).toUpperCase();
+            const uid = u.userId || u.id || "";
+            const initials = (u.name || uid).slice(0, 2).toUpperCase(); // admin→AD, wjdwogns→WJ
             const color = AVATAR_COLORS[hashUserId(uid) % AVATAR_COLORS.length];
 
             return (
               <div
                 key={uid || i}
                 className="online-user-avatar"
-                title={`${u.name} (${uid})`}
+                title={u.name || initials}
                 style={{ background: color }}
               >
                 {initials}
@@ -73,8 +84,29 @@ export default function WebSocketChatWindow({
         </div>
       )}
 
-      <MessageList messages={messages} bottomRef={bottomRef} />
-      <ChatInput onSend={handleSendMessage} disabled={!isConnected} />
+      <MessageList messages={decoratedMessages} bottomRef={bottomRef} />
+
+      <div className="chat-input-zone">
+        <ChatInput
+          onSend={handleSendMessage}
+          disabled={!isConnected}
+          onTypingChange={onTypingChange}
+        />
+
+        {/* 실시간 입력 중 표시: 입력창 하단 */}
+        {typingUsers.length > 0 && (
+          <div className="chat-typing-indicator is-visible" aria-live="polite">
+            <span className="chat-typing-text">{typingText}</span>
+            <span className="chat-typing-ellipsis" aria-hidden="true">...</span>
+          </div>
+        )}
+
+        {connectionError && (
+          <div className="chat-input-error" role="alert" aria-live="polite">
+            연결 오류: {connectionError}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

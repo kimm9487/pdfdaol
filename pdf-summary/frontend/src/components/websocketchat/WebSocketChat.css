@@ -337,14 +337,26 @@
   border-bottom: 1px solid #dde6f8 !important;
   padding: 8px 14px !important;
 }
-.chat-body [class*="bg-blue-600"] span {
+.chat-body [class*="bg-blue-600"] .chat-inner-title,
+.chat-body [class*="bg-blue-600"] .chat-conn-status {
   color: #3b6fd4 !important;
   font-size: 12px !important;
   font-weight: 600 !important;
 }
+.chat-body [class*="bg-blue-600"] .chat-inner-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .chat-body [class*="bg-blue-600"] .text-sm {
   font-size: 11px !important;
   opacity: 0.75;
+}
+.chat-body [class*="bg-blue-600"] .chat-conn-status {
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
 }
 
 /* ── 온라인 유저 컨테이너 — 좌측 아바타 컬럼 ── */
@@ -697,6 +709,135 @@
   cursor: not-allowed !important;
 }
 
+/* 하단 입력 영역 래퍼: typing/input/error를 한 덩어리로 고정 */
+.chat-input-zone {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-top: 1px solid #e4e9f2;
+  box-shadow: 0 -3px 12px rgba(15, 23, 42, 0.06);
+  padding: 6px 0 8px;
+}
+
+.chat-input-zone .chat-typing-indicator {
+  margin: 2px 14px 0;
+}
+
+.chat-input-zone [class*="border-t"][class*="p-4"] {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  border-top: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 4px 12px 2px !important;
+}
+
+/* 입력 중 표시: 입력창 바로 위에서 생동감 있게 노출 */
+.chat-typing-indicator {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #5385e9;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 0;
+  box-shadow: none;
+  opacity: 0;
+  transform: translateY(1px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+/* 보일 때만 부드럽게 등장 */
+.chat-typing-indicator.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.chat-typing-text {
+  display: inline;
+  white-space: nowrap;
+  opacity: 0.92;
+  letter-spacing: -0.1px;
+}
+
+.chat-typing-ellipsis {
+  display: inline-block;
+  margin-left: 2px;
+  width: 1.6em;
+  overflow: hidden;
+  letter-spacing: 1px;
+  vertical-align: bottom;
+  opacity: 0.75;
+  animation: typing-ellipsis-steps 1.25s steps(4, end) infinite;
+}
+
+@keyframes typing-ellipsis-steps {
+  0% {
+    width: 0;
+    opacity: 0.45;
+  }
+  100% {
+    width: 1.6em;
+    opacity: 0.95;
+  }
+}
+
+/* 서버 종료/연결 해제 오류: 입력창 아래 에러 메시지 */
+.chat-input-error {
+  margin: 6px 14px 8px 14px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: rgba(185, 28, 28, 0.06); /* 매우 연한 빨강 */
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  color: #b91c1c;
+  font-size: 12.8px;
+  font-weight: 500;
+  line-height: 1.45;
+  box-shadow: 0 1px 4px rgba(185, 28, 28, 0.06);
+  animation: errorFadeIn 0.3s ease forwards;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* 에러 아이콘도 연하게 */
+.chat-input-error::before {
+  content: "⚠️";
+  font-size: 14px;
+  opacity: 0.75;
+}
+
+@keyframes errorFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 다크모드에서도 과하지 않게 */
+@media (prefers-color-scheme: dark) {
+  .chat-typing-indicator {
+    color: #9ca3af;
+  }
+
+  .chat-input-error {
+    background: rgba(185, 28, 28, 0.12);
+    border-color: rgba(248, 113, 113, 0.3);
+    color: #fda4af;
+  }
+}
+
 /* ══════════════════════════════════════════════════════════
    반응형
 ══════════════════════════════════════════════════════════ */
@@ -926,25 +1067,33 @@
   gap: 4px;
   font-size: 10.5px;
   font-weight: 700;
-  background: rgba(255,255,255,0.18);
-  color: #fff;
+  background: #e8f0ff;
+  color: #2f5fb8;
   padding: 2px 9px;
   border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.28);
+  border: 1px solid #cdddfc;
   letter-spacing: -0.2px;
   backdrop-filter: blur(4px);
-  animation: count-pop 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+  animation: count-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 /* 좌측에 초록 점 */
 .chat-online-count::before {
-  content: '';
-  width: 5px; height: 5px; border-radius: 50%;
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
   background: #4ade80;
-  box-shadow: 0 0 5px rgba(74,222,128,0.8);
+  box-shadow: 0 0 5px rgba(74, 222, 128, 0.8);
   animation: gdot 1.8s ease-in-out infinite;
   flex-shrink: 0;
 }
 @keyframes count-pop {
-  from { transform: scale(0.6) translateY(-4px); opacity: 0; }
-  to   { transform: scale(1)   translateY(0);    opacity: 1; }
+  from {
+    transform: scale(0.6) translateY(-4px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
