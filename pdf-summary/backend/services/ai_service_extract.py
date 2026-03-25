@@ -1,5 +1,5 @@
 import os
-from typing import AsyncIterator
+from typing import AsyncIterator, Optional
 
 from services.ai_service import (
     summarize_text as _summarize_text,
@@ -49,6 +49,14 @@ async def get_available_models() -> list:
     return await _get_available_models()
 
 
-async def categorize_document(title: str = "", model: str = EXTRACT_DEFAULT_MODEL) -> str:
+async def categorize_document(
+    title: str = "",
+    extracted_text: Optional[str] = None,
+    model: str = EXTRACT_DEFAULT_MODEL,
+) -> str:
     selected_model = model or EXTRACT_DEFAULT_MODEL
-    return await _categorize_document(title=title, model=selected_model)
+    return await _categorize_document(
+        title=title,
+        extracted_text=extracted_text,
+        model=selected_model,
+    )

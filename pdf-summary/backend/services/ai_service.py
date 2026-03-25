@@ -34,6 +34,17 @@ SUMMARY_MAX_CONCURRENCY = max(1, int(os.getenv("SUMMARY_MAX_CONCURRENCY", "3")))
 RAG_EMBED_MAX_CONCURRENCY = max(1, int(os.getenv("RAG_EMBED_MAX_CONCURRENCY", "4")))
 # 문서 입력 최대 글자 수: (num_ctx - 프롬프트 오버헤드 ~1000토큰) * 1.5 chars/token, 최소 2000자
 _CHAT_INPUT_MAX_CHARS = max(2000, int((CHAT_NUM_CTX - 1000) * 1.5))
+# 카테고리 분류용 본문 미리보기 길이(키워드·LLM 입력만; DB의 extracted_text 전체는 그대로 유지)
+CATEGORIZE_BODY_PREFIX_CHARS = max(500, int(os.getenv("CATEGORIZE_BODY_PREFIX_CHARS", "3000")))
+# 공문서 중심 카테고리 (DB Enum·프론트 필터와 동일 문자열 유지)
+DOCUMENT_CATEGORY_ETC = "기타"
+DOCUMENT_CATEGORIES = (
+    "법령·규정",
+    "행정·공문",
+    "보고·계획",
+    "재정·계약",
+    DOCUMENT_CATEGORY_ETC,
+)
 
 SMALLTALK_PATTERNS = [
     r"^(안녕|안녕하세요|ㅎㅇ|hello|hi)\W*$",
@@ -1050,38 +1061,45 @@ async def get_available_models() -> list:
         return []
 
 
-async def categorize_document(title: str = "", model: str = DEFAULT_MODEL) -> str:
-    """
-    PDF 문서의 제목을 분석하여 카테고리를 분류합니다.
-    
-    카테고리:
-    - 강의: 교육, 강의, 수업, 학습 관련 제목
-    - 법률안: 법안, 법률, 규정, 조항, 시행령 등 법적 제목
-    - 보고서: 보고서, 분석, 통계, 현황 등 보고 성질의 제목
-    - 기타: 위의 카테고리에 해당하지 않는 기타 제목
-    
-    Args:
-        title: 문서 제목 (예: 파일명)
-        model: 사용할 AI 모델
-        
-    Returns:
-        분류된 카테고리: '강의', '법률안', '보고서', '기타' 중 하나
-    """
-    # 먼저 폴백(키워드 기반) 분류를 시도해서 정확도 높임
-    fallback_category = _fallback_categorize_by_title(title)
-    
-    # 폴백 분류가 "기타"가 아니면 그것을 사용 (더 확실함)
-    if fallback_category != "기타":
-        return fallback_category
-    
-    # 폴백이 "기타"인 경우만 AI 분류 시도
-    prompt = f"""다음 문서의 제목을 분석하여 정확히 하나의 카테고리로 분류해줘.
-    
-카테고리 정의:
-1. 강의: 교육, 강의, 수업, 학습, 교과서, 튜토리얼 등 교육 목적의 제목
-2. 법률안: 법안, 법률, 법령, 규정, 시행령, 조항, 법적 조항 등 법적 성질의 제목
-3. 보고서: 보고서, 리포트, 분석 보고서, 통계, 현황 보고, 연간 보고서 등 보고 성질의 제목
-4. 기타: 위의 세 카테고리에 명확하게 해당하지 않는 모든 제목
+async def _categorize_with_llm(
+    title: str,
+    body_excerpt: str,
+    model: str,
+    fallback_category: str,
+) -> str:
+    """제목·본문 앞부분 기반 LLM 분류. 키워드 폴백이 모두 기타일 때만 호출됩니다."""
+    valid_categories = list(DOCUMENT_CATEGORIES)
+    definitions = """카테고리 정의:
+1. 법령·규정: 법률·시행령·시행규칙·훈령·예규·행정규칙·조례·고시(법규)·법안·의안·조항·개정·제정 등 규범 문서
+2. 행정·공문: 공문·시달·협조요청·회신·통지·결재·품의·유통·대외 행정 안내·기관 간 문서
+3. 보고·계획: 업무보고·검토보고·실적·현황·통계·분석·평가·사업계획·추진계획·연간·월간·분기 보고
+4. 재정·계약: 예산·결산·입찰·계약·낙찰·지출·집행·용역·구매·발주·회계 등 재무·조달
+5. 기타: 위 네 가지에 명확히 해당하지 않는 경우"""
+    cat_line = "카테고리: [" + " 또는 ".join(valid_categories) + "]"
+
+    if body_excerpt.strip():
+        prompt = f"""다음 문서의 제목과 본문 앞부분을 함께 참고하여 정확히 하나의 카테고리로 분류해줘.
+
+{definitions}
+
+문서 제목:
+---
+{title}
+---
+
+본문 앞부분 (전체 원문의 앞 일부만 포함됨):
+---
+{body_excerpt}
+---
+
+응답 형식:
+{cat_line}
+
+정확히 위의 형식 그대로 응답하고, '카테고리:' 다음에 정확히 하나의 카테고리만 표기해줘. 다른 말은 하지 말고."""
+    else:
+        prompt = f"""다음 문서의 제목을 분석하여 정확히 하나의 카테고리로 분류해줘.
+
+{definitions}
 
 분석할 문서 제목:
 ---
@@ -1089,7 +1107,7 @@ async def categorize_document(title: str = "", model: str = DEFAULT_MODEL) -> st
 ---
 
 응답 형식:
-카테고리: [강의 또는 법률안 또는 보고서 또는 기타]
+{cat_line}
 
 정확히 위의 형식 그대로 응답하고, '카테고리:' 다음에 정확히 하나의 카테고리만 표기해줘. 다른 말은 하지 말고."""
 
@@ -1109,262 +1127,232 @@ async def categorize_document(title: str = "", model: str = DEFAULT_MODEL) -> st
             )
 
             if response.status_code != 200:
-                # API 오류 시 폴백 반환
                 return fallback_category
 
             data = response.json()
             result = data.get("response", "").strip()
-            
-            # 응답에서 카테고리 추출 (더 견고한 파싱)
+
             line_texts = result.split("\n")
             for line in line_texts:
                 line_lower = line.lower().strip()
-                
-                # "카테고리:" 시작 라인 찾기
                 if "카테고리:" in line_lower:
                     category_part = line.split("카테고리:")[-1].strip()
-                    
-                    # 유효한 카테고리가 포함되어 있는지 확인
-                    valid_categories = ["강의", "법률안", "보고서", "기타"]
                     for category in valid_categories:
                         if category in category_part:
                             return category
-            
-            # 응답에서 직접 카테고리명 찾기
-            valid_categories = ["강의", "법률안", "보고서", "기타"]
+
             for category in valid_categories:
                 if category in result:
                     return category
-            
-            # 파싱 실패 시 폴백 분류 사용
+
             return fallback_category
 
     except Exception as e:
-        # 오류 발생 시 폴백 분류 사용
         print(f"⚠️ AI 분류 실패: {str(e)}, 폴백 사용: {fallback_category}")
         return fallback_category
+
+
+async def categorize_document(
+    title: str = "",
+    extracted_text: Optional[str] = None,
+    model: str = DEFAULT_MODEL,
+) -> str:
+    """
+    PDF 문서의 제목과 본문 앞부분을 활용해 카테고리를 분류합니다.
+    전체 원문은 DB에 그대로 두고, 분류에는 앞부분만 사용합니다.
+
+    순서: 제목 키워드 → 본문 앞부분 키워드 → 둘 다 기타일 때만 LLM.
+
+    카테고리(공문서 중심):
+    - 법령·규정, 행정·공문, 보고·계획, 재정·계약, 기타
+
+    Args:
+        title: 문서 제목 (예: 파일명)
+        extracted_text: OCR/추출된 전체 텍스트(선택). 있으면 앞 CATEGORIZE_BODY_PREFIX_CHARS자만 분류에 사용
+        model: 사용할 AI 모델
+
+    Returns:
+        DOCUMENT_CATEGORIES 중 하나
+    """
+    title_fb = _fallback_categorize_by_title(title or "")
+    if title_fb != DOCUMENT_CATEGORY_ETC:
+        return title_fb
+
+    body_prefix = ""
+    if extracted_text and extracted_text.strip():
+        body_prefix = extracted_text.strip()[:CATEGORIZE_BODY_PREFIX_CHARS]
+
+    body_fb = DOCUMENT_CATEGORY_ETC
+    if body_prefix:
+        body_fb = _fallback_categorize(body_prefix, summary="")
+    if body_fb != DOCUMENT_CATEGORY_ETC:
+        return body_fb
+
+    return await _categorize_with_llm(
+        title=title or "",
+        body_excerpt=body_prefix,
+        model=model,
+        fallback_category=DOCUMENT_CATEGORY_ETC,
+    )
+
+
+def _official_category_keyword_scores(search_text: str) -> dict:
+    """소문자화된 문자열에 대해 공문서 카테고리별 키워드 점수를 계산합니다."""
+
+    def calculate_score(keywords_dict: dict, text: str) -> float:
+        score = 0.0
+        for keyword, weight in keywords_dict.items():
+            score += text.count(keyword) * weight
+        return score
+
+    law_regs = {
+        "법안": 4,
+        "법률안": 4,
+        "법률": 3,
+        "법령": 4,
+        "시행령": 3,
+        "시행규칙": 3,
+        "조항": 3,
+        "개정안": 3,
+        "개정": 2,
+        "제정": 2,
+        "훈령": 3,
+        "예규": 3,
+        "행정규칙": 3,
+        "조례": 3,
+        "의안": 3,
+        "입법": 2,
+        "헌법": 3,
+        "법제": 2,
+        "판례": 2,
+        "국회": 1,
+        "대법원": 2,
+        "법원": 1,
+        "조문": 2,
+        "부칙": 2,
+        "bill": 4,
+        "law": 3,
+        "act": 3,
+        "statute": 3,
+        "ordinance": 3,
+        "decree": 2,
+    }
+    admin_doc = {
+        "공문": 4,
+        "공문서": 4,
+        "시달": 3,
+        "협조요청": 4,
+        "협조": 3,
+        "회신": 3,
+        "통지": 3,
+        "통보": 2,
+        "결재": 3,
+        "품의": 3,
+        "문서번호": 3,
+        "발신": 2,
+        "수신": 2,
+        "수신자": 2,
+        "참조": 1,
+        "붙임": 2,
+        "유통": 2,
+        "전달": 2,
+        "담당": 1,
+        "행정": 1,
+        "official": 2,
+        "memorandum": 2,
+    }
+    report_plan = {
+        "보고서": 4,
+        "업무보고": 4,
+        "검토보고": 4,
+        "검토보고서": 4,
+        "실적": 3,
+        "현황": 3,
+        "통계": 3,
+        "분석": 2,
+        "평가": 2,
+        "보고": 2,
+        "리포트": 3,
+        "사업계획": 4,
+        "추진계획": 4,
+        "시행계획": 3,
+        "중기계획": 3,
+        "기본계획": 3,
+        "연간": 2,
+        "월간": 2,
+        "분기": 2,
+        "년간": 2,
+        "진행상황": 3,
+        "진행현황": 3,
+        "report": 4,
+        "analysis": 2,
+        "statistics": 3,
+    }
+    finance_contract = {
+        "예산": 4,
+        "결산": 4,
+        "입찰": 4,
+        "입찰공고": 4,
+        "계약": 4,
+        "계약서": 4,
+        "낙찰": 3,
+        "지출": 3,
+        "집행": 2,
+        "재정": 3,
+        "용역": 3,
+        "구매": 3,
+        "발주": 3,
+        "지급": 2,
+        "회계": 3,
+        "견적": 2,
+        "낙찰자": 3,
+        "조달": 3,
+        "budget": 4,
+        "contract": 4,
+        "bid": 3,
+        "procurement": 3,
+    }
+
+    return {
+        "법령·규정": calculate_score(law_regs, search_text),
+        "행정·공문": calculate_score(admin_doc, search_text),
+        "보고·계획": calculate_score(report_plan, search_text),
+        "재정·계약": calculate_score(finance_contract, search_text),
+    }
 
 
 def _fallback_categorize_by_title(title: str) -> str:
     """
     문서 제목만을 기반으로 키워드 기반 폴백 분류를 수행합니다.
     """
-    # 제목을 소문자로 변환
     search_text = title.lower()
-    
-    # ===== [강의] 교육/학습 관련 키워드 =====
-    lecture_keywords = {
-        # 핵심 키워드
-        "강의": 3, "수업": 3, "교육": 2, "학습": 2, "교과서": 3, "강의교안": 4, "강의자료": 4,
-        # English core keywords
-        "lecture": 3, "class": 2, "course": 3, "lesson": 2, "textbook": 3,
-        # 관련 키워드
-        "학생": 2, "교사": 2, "교수": 2, "튜토리얼": 3, "온라인 강좌": 3,
-        "수강": 2, "과목": 2, "교과": 2, "학습 목표": 3, "강의 내용": 3,
-        "수강생": 2, "교실": 2, "학급": 2, "학년": 2, "학기": 1,
-        "시험": 1, "문제": 1, "해답": 1, "풀이": 1, "연습문제": 2,
-        "강의 자료": 3, "강의 노트": 3, "수강 신청": 2, "교육 과정": 2,
-        "학습 내용": 2, "수업 자료": 2, "교육 자료": 2, "강좌": 2,
-        "수련": 1, "훈련": 1, "워크숍": 2, "세미나": 2, "강습": 2,
-        "기초": 1, "입문": 1, "초급": 1, "중급": 1, "고급": 1,
-        "한국어": 1, "영어": 1, "수학": 1, "과학": 1, "역사": 1,
-        # English related keywords
-        "tutorial": 3, "workshop": 2, "seminar": 2, "training": 2, "curriculum": 2,
-        "syllabus": 2, "lab": 1, "beginner": 1, "intermediate": 1, "advanced": 1
-    }
-    
-    # ===== [법률안] 법률/규정 관련 키워드 =====
-    law_keywords = {
-        # 핵심 키워드
-        "법안": 4, "법률": 3, "법령": 3, "규정": 3, "조항": 3, "의안":4,
-        # English core keywords
-        "bill": 4, "law": 3, "act": 3, "regulation": 3, "clause": 3,
-        # 관련 키워드
-        "시행령": 3, "시행규칙": 3, "법적": 2, "제정": 2, "개정": 2,
-        "조례": 3, "의안": 3, "의회": 2, "국회": 2, "입법": 2,
-        "판례": 2, "계약": 2, "약관": 2, "조건": 1, "의원": 1,
-        "법무": 2, "판사": 2, "검사": 2, "변호사": 2, "소송": 2,
-        "권리": 1, "의무": 1, "책임": 1, "위반": 1, "처벌": 1,
-        "조직법": 3, "형법": 3, "민법": 3, "행정법": 3, "상법": 3,
-        "법인": 2, "개인": 1, "기관": 1, "부서": 1, "직책": 1,
-        "규격": 1, "기준": 1, "표준": 1, "준칙": 2, "지침": 1,
-        "허가": 1, "인가": 1, "승인": 1, "신청": 1, "절차": 1,
-        "효력": 1, "발효": 1, "구속력": 2, "법적효력": 3,
-        # English related keywords
-        "legal": 2, "statute": 3, "ordinance": 3, "amendment": 2, "decree": 2,
-        "legislation": 2, "article": 2, "compliance": 2, "policy": 1
-    }
-    
-    # ===== [보고서] 보고/분석 관련 키워드 =====
-    report_keywords = {
-        # 핵심 키워드
-        "보고서": 4, "보고": 2, "리포트": 3, "분석": 2, "통계": 3,
-        # English core keywords
-        "report": 4, "analysis": 3, "statistics": 3, "survey": 2,
-        # 관련 키워드
-        "현황": 2, "결과": 1, "조사": 2, "데이터": 2, "연간": 2,
-        "월간": 2, "분기": 2, "실적": 2, "평가": 2, "진행": 1,
-        "현황 보고": 4, "기간 완료": 2, "포함": 1, "자료": 1, "수치": 1,
-        "그래프": 1, "차트": 1, "표": 1, "요약": 1, "결론": 1,
-        "분석 결과": 3, "조사 결과": 3, "통계 자료": 3, "통계 현황": 3,
-        "성과": 1, "진행상황": 2, "진행현황": 2, "상황": 1, "개요": 1,
-        "연도별": 2, "년도": 1, "기준": 1, "기준일": 1, "말": 1,
-        "지표": 1, "지수": 1, "비율": 1, "백분율": 1, "수준": 1,
-        # English related keywords
-        "status": 2, "result": 1, "findings": 2, "annual": 2, "monthly": 2,
-        "quarterly": 2, "trend": 1, "metric": 1, "dashboard": 1, "summary": 1,
-        "data": 2, "chart": 1, "table": 1
-    }
-    
-    # ===== 점수 계산 =====
-    def calculate_score(keywords_dict: dict, text: str) -> float:
-        """키워드 딕셔너리를 기반으로 점수를 계산합니다."""
-        score = 0
-        for keyword, weight in keywords_dict.items():
-            count = text.count(keyword)
-            score += count * weight
-        return score
-    
-    lecture_score = calculate_score(lecture_keywords, search_text)
-    law_score = calculate_score(law_keywords, search_text)
-    report_score = calculate_score(report_keywords, search_text)
-    
-    # ===== 점수 기반 분류 =====
-    scores = {
-        "강의": lecture_score,
-        "법률안": law_score,
-        "보고서": report_score
-    }
-    
+    scores = _official_category_keyword_scores(search_text)
     max_score = max(scores.values())
-    
-    # 최소 점수 기준 (점수가 너무 낮으면 기타로 분류)
     MIN_THRESHOLD = 1
-    
     if max_score > MIN_THRESHOLD:
-        max_category = max(scores, key=scores.get)
-        return max_category
-    
-    return "기타"
+        return max(scores, key=scores.get)
+    return DOCUMENT_CATEGORY_ETC
 
 
 def _fallback_categorize(text: str, summary: str = "") -> str:
     """
     AI 분류 실패 시 키워드 기반 폴백 분류를 수행합니다.
-    더 많은 키워드와 가중치를 사용하여 정확도를 높입니다.
     """
-    # 분석할 텍스트 준비 (처음 3000자 사용)
     search_text = (summary + " " + text[:3000]).lower()
-    
-    # ===== [강의] 교육/학습 관련 키워드 =====
-    lecture_keywords = {
-        # 핵심 키워드
-        "강의": 3, "수업": 3, "교육": 2, "학습": 2, "교과서": 3,
-        # English core keywords
-        "lecture": 3, "class": 2, "course": 3, "lesson": 2, "textbook": 3,
-        # 관련 키워드
-        "학생": 2, "교사": 2, "교수": 2, "튜토리얼": 3, "온라인 강좌": 3,
-        "수강": 2, "과목": 2, "교과": 2, "학습 목표": 3, "강의 내용": 3,
-        "수강생": 2, "교실": 2, "학급": 2, "학년": 2, "학기": 1,
-        "시험": 1, "문제": 1, "해답": 1, "풀이": 1, "연습문제": 2,
-        "강의 자료": 3, "강의 노트": 3, "수강 신청": 2, "교육 과정": 2,
-        "학습 내용": 2, "수업 자료": 2, "교육 자료": 2, "강좌": 2,
-        "수련": 1, "훈련": 1, "워크숍": 2, "세미나": 2, "강습": 2,
-        "기초": 1, "입문": 1, "초급": 1, "중급": 1, "고급": 1,
-        "한국어": 1, "영어": 1, "수학": 1, "과학": 1, "역사": 1,
-        # English related keywords
-        "tutorial": 3, "workshop": 2, "seminar": 2, "training": 2, "curriculum": 2,
-        "syllabus": 2, "lab": 1, "beginner": 1, "intermediate": 1, "advanced": 1
-    }
-    
-    # ===== [법률안] 법률/규정 관련 키워드 =====
-    law_keywords = {
-        # 핵심 키워드
-        "법안": 4, "법률": 3, "법령": 3, "규정": 3, "조항": 3,
-        # English core keywords
-        "bill": 4, "law": 3, "act": 3, "regulation": 3, "clause": 3,
-        # 관련 키워드
-        "시행령": 3, "시행규칙": 3, "법적": 2, "제정": 2, "개정": 2,
-        "조례": 3, "의안": 3, "의회": 2, "국회": 2, "입법": 2,
-        "판례": 2, "계약": 2, "약관": 2, "조건": 1, "의원": 1,
-        "법무": 2, "판사": 2, "검사": 2, "변호사": 2, "소송": 2,
-        "권리": 1, "의무": 1, "책임": 1, "위반": 1, "처벌": 1,
-        "조직법": 3, "형법": 3, "민법": 3, "행정법": 3, "상법": 3,
-        "법인": 2, "개인": 1, "기관": 1, "부서": 1, "직책": 1,
-        "규격": 1, "기준": 1, "표준": 1, "준칙": 2, "지침": 1,
-        "허가": 1, "인가": 1, "승인": 1, "신청": 1, "절차": 1,
-        "효력": 1, "발효": 1, "구속력": 2, "법적효력": 3,
-        # English related keywords
-        "legal": 2, "statute": 3, "ordinance": 3, "amendment": 2, "decree": 2,
-        "legislation": 2, "article": 2, "compliance": 2, "policy": 1
-    }
-    
-    # ===== [보고서] 보고/분석 관련 키워드 =====
-    report_keywords = {
-        # 핵심 키워드
-        "보고서": 4, "보고": 2, "리포트": 3, "분석": 2, "통계": 3,
-        # English core keywords
-        "report": 4, "analysis": 3, "statistics": 3, "survey": 2,
-        # 관련 키워드
-        "현황": 2, "결과": 1, "조사": 2, "데이터": 2, "연간": 2,
-        "월간": 2, "분기": 2, "실적": 2, "평가": 2, "진행": 1,
-        "현황 보고": 4, "기간 완료": 2, "포함": 1, "자료": 1, "수치": 1,
-        "그래프": 1, "차트": 1, "표": 1, "요약": 1, "결론": 1,
-        "분석 결과": 3, "조사 결과": 3, "통계 자료": 3, "통계 현황": 3,
-        "성과": 1, "진행상황": 2, "진행현황": 2, "상황": 1, "개요": 1,
-        "요약": 1, "정리": 1, "고찰": 1, "고점": 1, "변동": 1,
-        "증감": 1, "상승": 1, "하락": 1, "변화": 1, "추이": 1,
-        "연도별": 2, "년도": 1, "기준": 1, "기준일": 1, "말": 1,
-        "지표": 1, "지수": 1, "비율": 1, "백분율": 1, "수준": 1,
-        # English related keywords
-        "status": 2, "result": 1, "findings": 2, "annual": 2, "monthly": 2,
-        "quarterly": 2, "trend": 1, "metric": 1, "dashboard": 1, "summary": 1,
-        "data": 2, "chart": 1, "table": 1
-    }
-    
-    # ===== 점수 계산 =====
-    def calculate_score(keywords_dict: dict, text: str) -> float:
-        """키워드 딕셔너리를 기반으로 점수를 계산합니다."""
-        score = 0
-        for keyword, weight in keywords_dict.items():
-            count = text.count(keyword)
-            score += count * weight
-        return score
-    
-    lecture_score = calculate_score(lecture_keywords, search_text)
-    law_score = calculate_score(law_keywords, search_text)
-    report_score = calculate_score(report_keywords, search_text)
-    
-    # ===== 점수 기반 분류 =====
-    scores = {
-        "강의": lecture_score,
-        "법률안": law_score,
-        "보고서": report_score
-    }
-    
+    scores = _official_category_keyword_scores(search_text)
     max_score = max(scores.values())
-    
-    # 최소 점수 기준 (점수가 너무 낮으면 기타로 분류)
     MIN_THRESHOLD = 2
-    
     if max_score > MIN_THRESHOLD:
-        max_category = max(scores, key=scores.get)
-        return max_category
-    
-    # 스코어가 비슷한 경우 더 정밀한 분류
-    # 핵심 키워드 재계산
-    lecture_primary = sum(1 for kw in ["강의", "수업", "교육", "학습"] if kw in search_text)
-    law_primary = sum(1 for kw in ["법안", "법률", "규정", "조항"] if kw in search_text)
-    report_primary = sum(1 for kw in ["보고서", "분석", "통계"] if kw in search_text)
-    
+        return max(scores, key=scores.get)
+
     primary_scores = {
-        "강의": lecture_primary,
-        "법률안": law_primary,
-        "보고서": report_primary
+        "법령·규정": sum(1 for kw in ["법령", "법률", "시행령", "의안", "법안"] if kw in search_text),
+        "행정·공문": sum(1 for kw in ["공문", "협조", "시달", "회신", "결재"] if kw in search_text),
+        "보고·계획": sum(1 for kw in ["보고서", "실적", "현황", "계획"] if kw in search_text),
+        "재정·계약": sum(1 for kw in ["예산", "입찰", "계약", "결산"] if kw in search_text),
     }
-    
     max_primary = max(primary_scores.values())
     if max_primary > 0:
         return max(primary_scores, key=primary_scores.get)
-    
-    return "기타"
+
+    return DOCUMENT_CATEGORY_ETC

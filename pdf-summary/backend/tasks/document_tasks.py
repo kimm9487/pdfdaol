@@ -86,7 +86,9 @@ def extract_document_task(
 
         try:
             category_start = time.time()
-            category = asyncio.run(categorize_document(title=filename))
+            category = asyncio.run(
+                categorize_document(title=filename, extracted_text=extracted_text)
+            )
             category_time = time.time() - category_start
 
             doc.category = category

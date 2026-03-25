@@ -301,7 +301,7 @@ async def _build_extraction_document(
 
     try:
         category_start = time.time()
-        category = await categorize_document(title=filename)
+        category = await categorize_document(title=filename, extracted_text=extracted_text)
         category_time = time.time() - category_start
         doc.category = category
         db.commit()
@@ -519,7 +519,10 @@ async def extract_pdf(
             db.refresh(doc)
 
             try:
-                doc.category = await categorize_document(title=filename)
+                doc.category = await categorize_document(
+                    title=filename,
+                    extracted_text=extraction_result["text"],
+                )
             except Exception:
                 doc.category = "기타"
             db.commit()
