@@ -151,7 +151,62 @@ const DocumentList = () => {
                 다음 ❯
               </button>
             </div>
+<<<<<<< HEAD
+            {error && <div className="error">오류: {error}</div>}
+            {loading ? (
+                <div className="loading">목록을 불러오는 중...</div>
+            ) : documents.length === 0 ? (
+                <div className="loading">문서 목록이 없습니다</div>
+            ) : (
+                <>
+                    <div className="table-container">
+                        <table className="admin-table">
+                           <thead>
+                               <tr>
+                                   <th>ID</th>
+                                   <th>파일명</th>
+                                   <th>원문 추출 시간</th>
+                                   <th>요약 상태</th>
+                               </tr>
+                           </thead>
+                           <tbody>
+                               {currentItems.map(doc => (
+                                   <tr key={doc.id}>
+                                       <td>{doc.id}</td>
+                                       <td title={doc.filename}>{doc.filename}</td>
+                                       <td>
+                                           <span className="badge badge-info">
+                                               {typeof doc.processing_times?.extraction === 'number' ? `${doc.processing_times.extraction.toFixed(1)}s` : '-'}
+                                           </span>
+                                       </td>
+                                       <td>
+                                           <span className={`badge${(doc.summary && doc.summary.trim()) ? ' badge-success' : ' badge-warning'}`}>
+                                               {(doc.summary && doc.summary.trim()) ? '완료' : '요약안함'}
+                                           </span>
+                                           {(doc.summary && doc.summary.trim()) && typeof doc.processing_times?.summary === 'number' && (
+                                               <div style={{ fontSize: '0.85em', color: '#666', marginTop: 2 }}>
+                                                   (요약: {doc.processing_times.summary.toFixed(1)}s)
+                                               </div>
+                                           )}
+                                       </td>
+                                   </tr>
+                               ))}
+                           </tbody>
+                        </table>
+                    </div>
+                    
+                    {documents.length > 0 && (
+                        <div className="pagination">
+                            <button
+                                className="pagination-btn"
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                            >
+                                ❮ 이전
+                            </button>
+=======
           )}
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 
           {documents.length > 0 && (
             <div className="pagination-info">

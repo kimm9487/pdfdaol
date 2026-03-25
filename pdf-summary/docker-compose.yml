@@ -1,4 +1,39 @@
+version: "3.8"
+
 services:
+<<<<<<< HEAD
+  websocket:
+    image: pdf-summary-app:latest
+    container_name: pdf_websocket
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: python websocket_main.py
+    environment:
+      DB_HOST: 192.168.0.151
+      DB_PORT: 3307
+      DB_USER: root
+      DB_PASSWORD: "9487"
+      DB_NAME: pdf_summary
+      USE_REDIS: "true"
+      REDIS_URL: "redis://redis:6379/0"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./backend:/app
+
+=======
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
   db:
     image: mariadb:11.4
     container_name: pdf_db
@@ -19,6 +54,7 @@ services:
 
   backend:
     build: ./backend
+    image: pdf-summary-app:latest
     container_name: pdf_backend
     restart: unless-stopped
     depends_on:
@@ -32,12 +68,37 @@ services:
       DB_USER: root
       DB_PASSWORD: "9487"
       DB_NAME: pdf_summary
+<<<<<<< HEAD
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EXTRACT_DEFAULT_MODEL: gemma3:latest
+      CHAT_DEFAULT_MODEL: exaone3.5:2.4b
+      CHAT_NUM_CTX: "4096"
+      CHAT_NUM_PREDICT: "900"
+      CHAT_REPEAT_PENALTY: "1.1"
+      DEFAULT_MODEL: gemma3:latest
+      LORA_MODEL_NAME: exaone3.5:2.4b
+=======
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
       CHROMA_BASE_URL: http://chroma:8000
       CHROMA_COLLECTION: documents
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       OCR_USE_GPU: "true"
       PADDLE_DEVICE: gpu:0
+<<<<<<< HEAD
+      USE_REDIS: "true"
+      REDIS_URL: "redis://redis:6379/0"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+=======
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     ports:
       - "8000:8000"
     volumes:
@@ -51,19 +112,31 @@ services:
       - "6379:6379"
 
   chroma:
+<<<<<<< HEAD
+    image: chromadb/chroma:0.5.23
+=======
     image: chromadb/chroma:0.5.5
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     container_name: pdf_chroma
     restart: unless-stopped
     environment:
       IS_PERSISTENT: "TRUE"
       ANONYMIZED_TELEMETRY: "FALSE"
     ports:
+<<<<<<< HEAD
+      - "8002:8000"  # Fix: 8001 → 8002 (websocket 포트 충돌 방지)
+=======
       - "8001:8000"
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     volumes:
       - chroma_data:/chroma/chroma
 
   worker_ocr:
+<<<<<<< HEAD
+    image: pdf-summary-app:latest
+=======
     build: ./backend
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     container_name: pdf_worker_ocr
     restart: unless-stopped
     depends_on:
@@ -71,25 +144,60 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+<<<<<<< HEAD
+    command: python -m celery -A celery_app.celery_app worker -Q ocr --loglevel=info --concurrency=1 --hostname=ocr@%h
+=======
     command: python -m celery -A celery_app.celery_app worker -Q ocr --loglevel=info --concurrency=2 --hostname=ocr@%h
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     environment:
       DB_HOST: 192.168.0.151
       DB_PORT: 3307
       DB_USER: root
       DB_PASSWORD: "9487"
       DB_NAME: pdf_summary
+<<<<<<< HEAD
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EXTRACT_DEFAULT_MODEL: gemma3:latest
+      CHAT_DEFAULT_MODEL: exaone3.5:2.4b
+      CHAT_NUM_CTX: "4096"
+      CHAT_NUM_PREDICT: "900"
+      CHAT_REPEAT_PENALTY: "1.1"
+      DEFAULT_MODEL: gemma3:latest
+      LORA_MODEL_NAME: exaone3.5:2.4b
+=======
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
       CHROMA_BASE_URL: http://chroma:8000
       CHROMA_COLLECTION: documents
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
+<<<<<<< HEAD
+      LIBREOFFICE_PATH: /usr/bin/soffice
       PYTHONPATH: /app
       OCR_USE_GPU: "true"
       PADDLE_DEVICE: gpu:0
+      PADDLE_DETERMINISTIC: "1"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+=======
+      PYTHONPATH: /app
+      OCR_USE_GPU: "true"
+      PADDLE_DEVICE: gpu:0
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     volumes:
       - ./backend:/app
 
   worker_llm:
+<<<<<<< HEAD
+    image: pdf-summary-app:latest
+=======
     build: ./backend
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     container_name: pdf_worker_llm
     restart: unless-stopped
     depends_on:
@@ -104,6 +212,18 @@ services:
       DB_USER: root
       DB_PASSWORD: "9487"
       DB_NAME: pdf_summary
+<<<<<<< HEAD
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EXTRACT_DEFAULT_MODEL: gemma3:latest
+      CHAT_DEFAULT_MODEL: exaone3.5:2.4b
+      CHAT_NUM_CTX: "4096"
+      CHAT_NUM_PREDICT: "900"
+      CHAT_REPEAT_PENALTY: "1.1"
+      DEFAULT_MODEL: gemma3:latest
+      LORA_MODEL_NAME: exaone3.5:2.4b
+=======
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
       CHROMA_BASE_URL: http://chroma:8000
       CHROMA_COLLECTION: documents
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -113,7 +233,11 @@ services:
       - ./backend:/app
 
   flower:
+<<<<<<< HEAD
+    image: pdf-summary-app:latest
+=======
     build: ./backend
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     container_name: pdf_flower
     restart: unless-stopped
     depends_on:
@@ -134,8 +258,20 @@ services:
       - ollama
     ports:
       - "11434:11434"
+    environment:
+      OLLAMA_GPU_OVERHEAD: "134217728"
+      OLLAMA_KEEP_ALIVE: "30m"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
     volumes:
       - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   frontend:
     build: ./frontend
@@ -145,12 +281,19 @@ services:
       - backend
     environment:
       VITE_API_PORT: "8000"
+      VITE_BACKEND_TARGET: http://backend:8000
+      NODE_ENV: development
     ports:
       - "5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
+
 volumes:
   ollama_data:
   mariadb_data:
+<<<<<<< HEAD
   chroma_data:
+=======
+  chroma_data:
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477

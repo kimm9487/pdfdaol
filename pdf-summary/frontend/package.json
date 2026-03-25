@@ -10,10 +10,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "date-fns": "^4.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hot-toast": "^2.6.0",
+<<<<<<< HEAD
+    "react-router-dom": "^7.13.1",
+    "socket.io-client": "^4.8.3"
+=======
     "react-router-dom": "^7.13.1"
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

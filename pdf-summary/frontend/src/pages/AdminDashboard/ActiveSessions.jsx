@@ -1,5 +1,10 @@
+<<<<<<< HEAD
+import React, { useState, useEffect } from 'react';
+import { buildApiUrl } from '../../config/api';
+=======
 import React, { useState, useEffect } from "react";
 import { buildApiUrl } from "../../config/api";
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
 
 const ActiveSessions = () => {

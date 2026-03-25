@@ -123,9 +123,16 @@ const FilterSection = ({
             }
           >
             <option value="전체">분류: 전체</option>
+<<<<<<< HEAD
+            <option value="법령·규정">법령·규정</option>
+            <option value="행정·공문">행정·공문</option>
+            <option value="보고·계획">보고·계획</option>
+            <option value="재정·계약">재정·계약</option>
+=======
             <option value="강의">강의</option>
             <option value="법률안">법률안</option>
             <option value="보고서">보고서</option>
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
             <option value="기타">기타</option>
           </select>
           <select
@@ -156,4 +163,8 @@ const FilterSection = ({
   );
 };
 
+<<<<<<< HEAD
 export default FilterSection;
+=======
+export default FilterSection;
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477

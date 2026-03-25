@@ -1,6 +1,18 @@
 import os
 import time
 from typing import Callable, Optional
+<<<<<<< HEAD
+
+import numpy as np
+from fastapi import HTTPException
+
+from .easyocr_extractor import _build_reader as build_easyocr_reader
+from .easyocr_extractor import extract_text as extract_easyocr
+
+
+from .image_preprocess import preprocess_for_ocr
+from .markdown_layout import to_layout_markdown
+=======
 
 import numpy as np
 from fastapi import HTTPException, UploadFile
@@ -8,6 +20,7 @@ from fastapi import HTTPException, UploadFile
 from .easyocr_extractor import _build_reader as build_easyocr_reader
 from .easyocr_extractor import extract_text as extract_easyocr
 from .image_preprocess import preprocess_for_ocr
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 from .paddleocr_extractor import _build_reader as build_paddleocr_reader
 from .paddleocr_extractor import _extract_lines_from_result
 from .paddleocr_extractor import extract_text as extract_paddleocr
@@ -32,17 +45,17 @@ def list_available_ocr_models() -> list:
     ]
 
 
-async def extract_with_model(file: UploadFile, ocr_model: str) -> OcrResult:
+async def extract_with_model(file_bytes: bytes, filename: str, ocr_model: str) -> OcrResult:
     model = (ocr_model or "pypdf2").lower()
 
     if model == "pypdf2":
-        return await extract_pypdf2(file)
+        return await extract_pypdf2(file_bytes, filename)
     if model == "tesseract":
-        return await extract_tesseract(file)
+        return await extract_tesseract(file_bytes, filename)
     if model == "easyocr":
-        return await extract_easyocr(file)
+        return await extract_easyocr(file_bytes, filename)
     if model == "paddleocr":
-        return await extract_paddleocr(file)
+        return await extract_paddleocr(file_bytes, filename)
 
     raise HTTPException(
         status_code=400,
@@ -87,7 +100,11 @@ def extract_with_model_sync(
                     page_text = "\n".join([text for text in retry_results if text]).strip()
 
                 if page_text:
+<<<<<<< HEAD
+                    parts.append(f"[페이지 {idx}]\n{to_layout_markdown(page_text)}")
+=======
                     parts.append(f"[페이지 {idx}]\n{page_text}")
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
                     successful_pages += 1
             except Exception as exc:
                 if first_error is None:
@@ -130,7 +147,11 @@ def extract_with_model_sync(
                     page_text = "\n".join(retry_lines).strip()
 
                 if page_text:
+<<<<<<< HEAD
+                    parts.append(f"[페이지 {idx}]\n{to_layout_markdown(page_text)}")
+=======
                     parts.append(f"[페이지 {idx}]\n{page_text}")
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
                     successful_pages += 1
             except Exception as exc:
                 if first_error is None:
@@ -171,7 +192,11 @@ def extract_with_model_sync(
 
                 page_text = max(candidates, key=lambda value: len(value)) if candidates else ""
                 if page_text:
+<<<<<<< HEAD
+                    parts.append(f"[페이지 {idx}]\n{to_layout_markdown(page_text)}")
+=======
                     parts.append(f"[페이지 {idx}]\n{page_text}")
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
                     successful_pages += 1
             except Exception as exc:
                 if first_error is None:
@@ -198,5 +223,10 @@ def extract_with_model_sync(
 
     raise HTTPException(
         status_code=400,
+<<<<<<< HEAD
+        detail=f"지원하지 않는 OCR 모델입니다: {ocr_model}. 지원 모델: {', '.join(SUPPORTED_OCR_MODELS.keys())}",
+    )
+=======
         detail=f"지원하지 않는 OCR 모델입니다: {ocr_model}. 지원 모델: easyocr, paddleocr, tesseract",
     )
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477

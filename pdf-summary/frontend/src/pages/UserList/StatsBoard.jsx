@@ -37,4 +37,8 @@ const StatsBoard = ({ filteredData, isMyDocument }) => {
   );
 };
 
+<<<<<<< HEAD
 export default StatsBoard;
+=======
+export default StatsBoard;
+>>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
