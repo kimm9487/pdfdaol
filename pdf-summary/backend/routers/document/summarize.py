@@ -1,9 +1,6 @@
 import asyncio
 import io
-<<<<<<< HEAD
 import re
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -19,7 +16,6 @@ from celery.result import AsyncResult
 import PyPDF2
 
 from services.pdf_service import extract_text_from_pdf
-<<<<<<< HEAD
 # [osj | 2026-03-24] OCR 진행률 SSE 실시간 전송을 위한 동기 추출 함수 import
 from services.ocr.factory import extract_with_model_sync
 from services.ai_service_extract import (
@@ -31,10 +27,6 @@ from services.ai_service_chat import (
     summarize_with_instruction,
     summarize_with_instruction_stream,
 )
-=======
-from services.ai_service import summarize_text, summarize_text_stream, categorize_document  # [변경] summarize_text_stream 추가
-from services.ocr.factory import extract_with_model_sync  # [추가] OCR 동기 실행용 (run_in_executor)
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 from database import get_db, PdfDocument, can_user_access_document, log_admin_activity
 from celery_app import celery_app
 from tasks.document_tasks import extract_document_task, summarize_document_task
@@ -553,7 +545,6 @@ async def extract_pdf(
                     "ocr_model": "pypdf2",
                 }
             else:
-<<<<<<< HEAD
                 # [osj | 2026-03-24] run_in_executor로 OCR을 별도 스레드에서 실행하고
                 # asyncio.Queue를 통해 페이지 완료 시마다 ocr_progress SSE를 실시간 전송
                 # 총 페이지 수를 먼저 파악하기 위해 PDF를 렌더링 (이미지는 OCR 단계에서 재사용)
@@ -613,41 +604,6 @@ async def extract_pdf(
 
                 if ocr_error is not None:
                     detail = _stringify_detail(getattr(ocr_error, "detail", str(ocr_error)), "추출 중 오류가 발생했습니다.")
-=======
-                yield _sse({"type": "start", "total_pages": 0, "ocr_mode": True})
-
-                loop = asyncio.get_running_loop()
-                queue = asyncio.Queue()
-
-                def on_page(current: int, total: int):
-                    asyncio.run_coroutine_threadsafe(
-                        queue.put({"type": "ocr_progress", "page": current, "total": total}),
-                        loop,
-                    )
-
-                future = loop.run_in_executor(
-                    None,
-                    lambda: extract_with_model_sync(contents, filename, model, on_page=on_page),
-                )
-
-                while not future.done():
-                    try:
-                        event = queue.get_nowait()
-                        yield _sse(event)
-                    except asyncio.QueueEmpty:
-                        await asyncio.sleep(0.08)
-
-                while not queue.empty():
-                    try:
-                        yield _sse(queue.get_nowait())
-                    except asyncio.QueueEmpty:
-                        break
-
-                try:
-                    extraction_result = future.result()
-                except Exception as exc:
-                    detail = getattr(exc, "detail", str(exc))
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
                     yield _sse({"type": "error", "detail": detail})
                     return
 
@@ -681,14 +637,10 @@ async def extract_pdf(
             db.refresh(doc)
 
             try:
-<<<<<<< HEAD
                 doc.category = await categorize_document(
                     title=filename,
                     extracted_text=extraction_result["text"],
                 )
-=======
-                doc.category = await categorize_document(title=filename)
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
             except Exception:
                 doc.category = "기타"
             db.commit()
@@ -749,11 +701,7 @@ async def extract_pdf(
                 },
             })
         except Exception as exc:
-<<<<<<< HEAD
             detail = _stringify_detail(getattr(exc, "detail", str(exc)), "추출 중 오류가 발생했습니다.")
-=======
-            detail = getattr(exc, "detail", str(exc))
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
             yield _sse({"type": "error", "detail": detail})
 
     return StreamingResponse(
@@ -771,7 +719,6 @@ async def extract_pdf(
 async def extract_pdf_for_chat(
     file: UploadFile = File(...),
     ocr_model: str = Form(default="pypdf2"),
-<<<<<<< HEAD
     current_doc_count: int = Form(default=0),
 ):
     """(Chat only) Extracts text without saving any document to DB."""
@@ -790,20 +737,11 @@ async def extract_pdf_for_chat(
         filename=filename,
         ocr_model=ocr_model,
     )
-=======
-):
-    """(Chat only) Extracts text without saving any document to DB."""
-    extraction_result = await extract_text_from_pdf(file, ocr_model=ocr_model)
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     extracted_text = extraction_result["text"]
     extraction_time = extraction_result["processing_time"]
 
     return {
-<<<<<<< HEAD
         "filename": filename,
-=======
-        "filename": file.filename,
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
         "extracted_text": extracted_text,
         "ocr_model": extraction_result.get("ocr_model"),
         "timing": {
@@ -861,10 +799,6 @@ async def summarize_extracted_document(
         doc.summary_time_seconds = round(summary_time, 3)
         doc.updated_at = datetime.datetime.now()
         db.commit()
-<<<<<<< HEAD
-=======
-        db.refresh(doc)
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 
         log_admin_activity(
             db=db,
@@ -942,8 +876,4 @@ async def summarize_pdf_legacy(
     extracted["summary"] = summary
     extracted["model_used"] = model
     extracted["timing"]["summary_time"] = f"{summary_time:.2f}초"
-<<<<<<< HEAD
     return extracted
-=======
-    return extracted
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477

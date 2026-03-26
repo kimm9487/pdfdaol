@@ -9,170 +9,9 @@ from urllib.parse import urlparse
 from typing import AsyncIterator, List, Optional, Tuple
 
 try:
-<<<<<<< HEAD
     import chromadb  
 except Exception:
     chromadb = None
-=======
-    import chromadb  # type: ignore
-except Exception:
-    chromadb = None
-
-# Ollama/VectorDB 기본 설정
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gemma3:latest")
-LORA_MODEL_NAME = os.getenv("LORA_MODEL_NAME", "qwen2.5:3b-instruct-lora")
-RAG_ENABLED = os.getenv("RAG_ENABLED", "true").strip().lower() == "true"
-CHROMA_BASE_URL = os.getenv("CHROMA_BASE_URL", "http://chroma:8000")
-CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "documents")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
-RAG_TOP_K = int(os.getenv("RAG_TOP_K", "4"))
-
-
-def _split_text_for_rag(text: str, chunk_size: int = 1200, overlap: int = 200) -> List[str]:
-    chunks = []
-    start = 0
-    safe_text = (text or "").strip()
-    while start < len(safe_text):
-        end = min(start + chunk_size, len(safe_text))
-        chunk = safe_text[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-        if end >= len(safe_text):
-            break
-        next_start = max(0, end - overlap)
-        if next_start <= start:
-            break
-        start = next_start
-    return chunks
-
-
-def _sanitize_collection_suffix(value: str) -> str:
-    normalized = re.sub(r"[^a-zA-Z0-9_-]", "_", (value or "shared").strip())
-    return normalized[:48] or "shared"
-
-
-def _get_chroma_http_client():
-    if chromadb is None:
-        return None
-
-    parsed = urlparse(CHROMA_BASE_URL)
-    host = parsed.hostname or "chroma"
-    if parsed.port:
-        port = parsed.port
-    else:
-        port = 443 if parsed.scheme == "https" else 8000
-    ssl = parsed.scheme == "https"
-    return chromadb.HttpClient(host=host, port=port, ssl=ssl)
-
-
-async def _get_ollama_embedding(text: str, model: str = EMBEDDING_MODEL) -> Optional[List[float]]:
-    input_text = (text or "").strip()
-    if not input_text:
-        return None
-
-    try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            legacy_response = await client.post(
-                f"{OLLAMA_BASE_URL}/api/embeddings",
-                json={"model": model, "prompt": input_text},
-            )
-            if legacy_response.status_code == 200:
-                payload = legacy_response.json()
-                return payload.get("embedding")
-
-            embed_response = await client.post(
-                f"{OLLAMA_BASE_URL}/api/embed",
-                json={"model": model, "input": input_text},
-            )
-            if embed_response.status_code == 200:
-                payload = embed_response.json()
-                embeddings = payload.get("embeddings") or []
-                if embeddings:
-                    return embeddings[0]
-    except Exception as exc:
-        print(f"⚠️ 임베딩 생성 실패: {str(exc)}")
-
-    return None
-
-
-async def build_rag_context(document_text: str, query: str, user_scope: str, top_k: int = RAG_TOP_K) -> Tuple[str, int]:
-    if not RAG_ENABLED:
-        return "", 0
-
-    text = (document_text or "").strip()
-    if not text:
-        return "", 0
-
-    chroma_client = _get_chroma_http_client()
-    if chroma_client is None:
-        return "", 0
-
-    chunks = _split_text_for_rag(text)
-    if not chunks:
-        return "", 0
-
-    scope = _sanitize_collection_suffix(user_scope)
-    collection_name = f"{CHROMA_COLLECTION}_{scope}"
-    try:
-        collection = chroma_client.get_or_create_collection(
-            name=collection_name,
-            metadata={"hnsw:space": "cosine"},
-        )
-    except Exception as exc:
-        print(f"⚠️ Chroma 컬렉션 생성 실패: {str(exc)}")
-        return "", 0
-
-    fingerprint = hashlib.sha1(text[:4000].encode("utf-8", errors="ignore")).hexdigest()[:12]
-    ids = []
-    documents = []
-    embeddings = []
-    metadatas = []
-
-    for idx, chunk in enumerate(chunks):
-        emb = await _get_ollama_embedding(chunk)
-        if emb is None:
-            continue
-        ids.append(f"{fingerprint}-{idx}")
-        documents.append(chunk)
-        embeddings.append(emb)
-        metadatas.append({"scope": scope, "chunk_index": idx})
-
-    if not ids:
-        # 임베딩 실패 시 최소한 앞부분 문맥 제공
-        fallback_docs = chunks[:2]
-        return "\n\n".join(f"[문맥 {i+1}] {c}" for i, c in enumerate(fallback_docs)), len(fallback_docs)
-
-    try:
-        collection.upsert(ids=ids, documents=documents, embeddings=embeddings, metadatas=metadatas)
-    except Exception as exc:
-        print(f"⚠️ Chroma upsert 실패: {str(exc)}")
-        fallback_docs = chunks[:2]
-        return "\n\n".join(f"[문맥 {i+1}] {c}" for i, c in enumerate(fallback_docs)), len(fallback_docs)
-
-    query_emb = await _get_ollama_embedding(query)
-    if query_emb is None:
-        fallback_docs = chunks[:2]
-        return "\n\n".join(f"[문맥 {i+1}] {c}" for i, c in enumerate(fallback_docs)), len(fallback_docs)
-
-    try:
-        results = collection.query(
-            query_embeddings=[query_emb],
-            n_results=min(max(top_k, 1), len(ids)),
-            include=["documents", "distances"],
-        )
-        doc_hits = (results.get("documents") or [[]])[0]
-    except Exception as exc:
-        print(f"⚠️ Chroma query 실패: {str(exc)}")
-        doc_hits = []
-
-    if not doc_hits:
-        fallback_docs = chunks[:2]
-        return "\n\n".join(f"[문맥 {i+1}] {c}" for i, c in enumerate(fallback_docs)), len(fallback_docs)
-
-    context = "\n\n".join(f"[문맥 {i+1}] {chunk}" for i, chunk in enumerate(doc_hits))
-    return context, len(doc_hits)
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 
 # Ollama/VectorDB 기본 설정
 _IS_DOCKER = os.path.exists("/.dockerenv")
@@ -767,13 +606,9 @@ async def summarize_text_stream(text: str, model: str = DEFAULT_MODEL) -> AsyncI
     """Ollama 스트리밍 응답을 토큰 단위 문자열로 반환합니다."""
     MAX_CHARS = 8000
     if len(text) > MAX_CHARS:
-<<<<<<< HEAD
         result = await summarize_long_text(text, model)
         yield result
         return
-=======
-        text = text[:MAX_CHARS] + "\n\n[... 이하 내용 생략 ...]"
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 
     prompt = f"""다음 PDF 문서 내용을 한국어로 명확하고 간결하게 요약해줘.
 
@@ -797,13 +632,10 @@ async def summarize_text_stream(text: str, model: str = DEFAULT_MODEL) -> AsyncI
                     "model": model,
                     "prompt": prompt,
                     "stream": True,
-<<<<<<< HEAD
                     # [속도 최적화 2026-03-19] 컨텍스트 크기 축소 + 최대 토큰 제한 → LLM 추론 속도 향상
                     "num_ctx": 4096,       # 기본값 ~8192보다 작게 설정
                     "num_predict": 1024,  # 요약 출력 토큰 상한
                     "repeat_penalty": 1.1, # 반복 패널티 줄여 속도 향상
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
                 },
             ) as response:
                 if response.status_code != 200:
@@ -850,39 +682,26 @@ async def summarize_with_instruction(
     use_lora: bool = False,
 ) -> str:
     """사용자 지시를 반영해 문서 텍스트를 요약/정리합니다."""
-<<<<<<< HEAD
     MAX_CHARS = _CHAT_INPUT_MAX_CHARS
     if len(text) > MAX_CHARS:
         text = await summarize_long_text(text, model)
-=======
-    MAX_CHARS = 12000
-    if len(text) > MAX_CHARS:
-        text = text[:MAX_CHARS] + "\n\n[... 이하 내용 생략 ...]"
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 
     clean_instruction = (instruction or "핵심 내용을 짧게 요약해줘").strip()
     if not clean_instruction:
         clean_instruction = "핵심 내용을 짧게 요약해줘"
 
-<<<<<<< HEAD
     if _is_smalltalk_instruction(clean_instruction):
         return _smalltalk_response(clean_instruction)
 
     is_document_focused = _is_document_focused_instruction(clean_instruction)
 
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     selected_model = LORA_MODEL_NAME if use_lora else model
     if not selected_model:
         selected_model = DEFAULT_MODEL
 
     rag_context = ""
     rag_count = 0
-<<<<<<< HEAD
     if use_rag and (is_document_focused or _is_code_request(clean_instruction)):
-=======
-    if use_rag:
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
         rag_context, rag_count = await build_rag_context(
             document_text=text,
             query=clean_instruction,
@@ -897,32 +716,12 @@ async def summarize_with_instruction(
 {rag_context}
 """
 
-<<<<<<< HEAD
     system_prompt, user_prompt = _build_chat_prompts(
         clean_instruction=clean_instruction,
         text=text,
         rag_block=rag_block,
         is_document_focused=is_document_focused,
     )
-=======
-    prompt = f"""당신은 문서 분석 도우미입니다.
-아래 사용자의 요청을 가장 우선으로 반영해 한국어로 답변하세요.
-
-[사용자 요청]
-{clean_instruction}
-
-{rag_block}
-
-[문서 내용]
-{text}
-
-[응답 규칙]
-- 요청이 요약이면 핵심 위주로 간결하게 작성
-- 요청이 목록/표 형태를 원하면 그 형식에 맞게 작성
-- 문서에 없는 내용은 추측하지 않음
-- RAG 문맥이 있으면 해당 근거를 우선 반영
-"""
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 
     try:
         async with httpx.AsyncClient(timeout=600.0) as client:
@@ -930,7 +729,6 @@ async def summarize_with_instruction(
                 f"{OLLAMA_BASE_URL}/api/generate",
                 json={
                     "model": selected_model,
-<<<<<<< HEAD
                     "system": system_prompt,
                     "prompt": user_prompt,
                     "options": {
@@ -940,9 +738,6 @@ async def summarize_with_instruction(
                         "num_predict": CHAT_NUM_PREDICT,
                         "repeat_penalty": CHAT_REPEAT_PENALTY,
                     },
-=======
-                    "prompt": prompt,
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
                     "stream": False,
                 },
             )
@@ -955,11 +750,6 @@ async def summarize_with_instruction(
 
             data = response.json()
             answer = data.get("response", "응답을 가져올 수 없습니다.")
-<<<<<<< HEAD
-=======
-            if rag_count > 0:
-                answer = f"{answer}\n\n(참고 문맥 {rag_count}개 기반)"
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
             return answer
 
     except httpx.ConnectError:
@@ -973,7 +763,6 @@ async def summarize_with_instruction(
         raise HTTPException(status_code=500, detail=f"대화형 요약 중 오류 발생: {str(e)}")
 
 
-<<<<<<< HEAD
 async def summarize_with_instruction_stream(
     text: str,
     instruction: str,
@@ -1079,8 +868,6 @@ async def summarize_with_instruction_stream(
         raise HTTPException(status_code=500, detail=f"대화형 스트리밍 요약 중 오류 발생: {str(e)}")
 
 
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 async def translate_to_english(text: str, model: str = DEFAULT_MODEL) -> str:
     """
     한국어 텍스트를 영어로 번역합니다.

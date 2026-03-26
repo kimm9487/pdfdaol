@@ -16,10 +16,6 @@ def _build_reader(langs: list):
     except ImportError as exc:
         raise HTTPException(status_code=503, detail=f"easyocr 미설치: {exc}")
 
-<<<<<<< HEAD
-=======
-    # 기본은 GPU를 시도하고, GPU 사용 불가 환경에서는 CPU로 자동 폴백합니다.
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     use_gpu = os.getenv("OCR_USE_GPU", "true").lower() in {"1", "true", "yes", "on"}
     if use_gpu:
         try:

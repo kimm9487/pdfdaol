@@ -1,9 +1,6 @@
 import time
 import os
-<<<<<<< HEAD
 import types
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 
 from fastapi import HTTPException
 import numpy as np
@@ -36,33 +33,19 @@ def _ensure_paddle_fluid_compat() -> None:
 
 
 def _build_reader(lang: str):
-<<<<<<< HEAD
     os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
 
     _ensure_paddle_fluid_compat()
 
-=======
-    # 네트워크 체크로 인한 초기화 지연/충돌을 방지합니다.
-    os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
-
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     try:
         from paddleocr import PaddleOCR
     except ImportError as exc:
         raise HTTPException(status_code=503, detail=f"paddleocr 미설치: {exc}")
 
     try:
-<<<<<<< HEAD
         use_gpu = os.getenv("OCR_USE_GPU", "true").lower() in {"1", "true", "yes", "on"}
         preferred_device = os.getenv("PADDLE_DEVICE", "gpu:0" if use_gpu else "cpu")
 
-=======
-        # PaddleOCR v3 uses `device` instead of deprecated `use_gpu`.
-        use_gpu = os.getenv("OCR_USE_GPU", "true").lower() in {"1", "true", "yes", "on"}
-        preferred_device = os.getenv("PADDLE_DEVICE", "gpu:0" if use_gpu else "cpu")
-
-        # PaddleOCR v3: device 인자 사용
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
         if use_gpu:
             try:
                 return PaddleOCR(use_angle_cls=True, lang=lang, device=preferred_device)
@@ -72,10 +55,6 @@ def _build_reader(lang: str):
         try:
             return PaddleOCR(use_angle_cls=True, lang=lang, device="cpu")
         except TypeError:
-<<<<<<< HEAD
-=======
-            # PaddleOCR v2: use_gpu 인자 사용
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
             if use_gpu:
                 try:
                     return PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=True)

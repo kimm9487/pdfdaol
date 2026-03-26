@@ -122,12 +122,9 @@ async def get_database_status(db: Session = Depends(get_db)):
         )
 
 
-<<<<<<< HEAD
 
 import requests
 
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 @system_router.get("/chroma-status")
 async def get_chroma_status(
     admin_user_id: Optional[int] = None,
@@ -135,7 +132,6 @@ async def get_chroma_status(
 ):
     """Chroma VectorDB 상태와 컬렉션 통계를 반환합니다."""
     _assert_admin(db, admin_user_id)
-<<<<<<< HEAD
     base_url = os.getenv("CHROMA_BASE_URL", "http://chroma:8000")
     try:
         import json
@@ -201,46 +197,15 @@ async def get_chroma_status(
                 "metadata": metadata,
                 "count": count,
             })
-=======
-
-    try:
-        client, base_url = _build_chroma_client()
-        heartbeat = client.heartbeat()
-        collections = client.list_collections()
-
-        items = []
-        for col in collections:
-            count = 0
-            try:
-                count = col.count()
-            except Exception:
-                count = -1
-
-            items.append(
-                {
-                    "name": col.name,
-                    "count": count,
-                }
-            )
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 
         return {
             "connected": True,
             "base_url": base_url,
-<<<<<<< HEAD
             "heartbeat": heartbeat_str,
-=======
-            "heartbeat": heartbeat,
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
             "collection_count": len(items),
             "collections": sorted(items, key=lambda x: x["name"]),
             "timestamp": datetime.datetime.now().isoformat(),
         }
-<<<<<<< HEAD
-=======
-    except HTTPException:
-        raise
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chroma 상태 조회 실패: {str(e)}")
 
