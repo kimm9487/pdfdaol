@@ -5,6 +5,7 @@ export default function MessageBubble({ message }) {
   const {
     senderId,
     senderName,
+    senderRole,
     content,
     timestamp,
     isSystem,
@@ -15,10 +16,42 @@ export default function MessageBubble({ message }) {
   } = message || {};
 
   if (isSystem) {
+    const text = String(content || "");
+    const isPermanentNotice = text.includes("영구 정지");
+    const isTimedBanNotice =
+      text.includes("1일 채팅 금지") ||
+      text.includes("1일 채팅금지") ||
+      text.includes("채팅 금지") ||
+      text.includes("채팅금지");
+    const isKickNotice = text.includes("강제 퇴장") || text.includes("강퇴");
+    const isModerationNotice = isPermanentNotice || isTimedBanNotice || isKickNotice;
+
+    const actionText = isPermanentNotice
+      ? "영구 정지"
+      : isTimedBanNotice
+      ? "1일 채팅 금지"
+      : isKickNotice
+      ? "강제 퇴장"
+      : "";
+
+    const targetFromAdminSentence = text.match(/님이\s+(.+?)님을/);
+    const targetFromFlatSentence = text.match(/^\s*(.+?)님\s+(강제 퇴장|1일 채팅 금지|1일 채팅금지|영구 정지)/);
+    const targetName =
+      targetFromAdminSentence?.[1] ||
+      targetFromFlatSentence?.[1] ||
+      "대상 사용자";
+
+    const reasonMatch = text.match(/사유\s*[:：]?\s*(.+)$/);
+    const reason = reasonMatch?.[1] || "운영 정책 위반";
+
+    const normalizedText = isModerationNotice
+      ? `${targetName}님 ${actionText} · ${reason}`
+      : text;
+
     return (
-      <div className="flex justify-center my-4">
-        <span className="px-4 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-500 text-xs rounded-full">
-          {content}
+      <div className="flex justify-center my-3">
+        <span className={`chat-system-message ${isModerationNotice ? "moderation" : ""}`.trim()}>
+          {normalizedText}
         </span>
       </div>
     );
@@ -30,74 +63,69 @@ export default function MessageBubble({ message }) {
   const rawLabel = (senderName || "").slice(0, 2).toUpperCase();
   const avatarLabel = rawLabel && !/^\d+$/.test(rawLabel) ? rawLabel : "?";
   const senderDisplayName = senderName && !/^\d+$/.test(senderName) ? senderName : "알 수 없음";
+  const isAdminSender = String(senderRole || "").toLowerCase() === "admin";
+  const rowClass = isMe ? "me" : "other";
+  const continuousClass = isContinuous
+    ? isMe
+      ? "cont-me"
+      : "cont-other"
+    : "";
 
   return (
-    <div
-      className={`chat-msg-row flex items-end gap-2 group ${
-        isMe ? "chat-msg-me" : "chat-msg-other"
-      } ${
-        isMe ? "justify-end" : "justify-start"
-      } ${isContinuous ? "mt-0.5" : "mt-4"}`}
-    >
+    <div className={`chat-msg-row ${rowClass} ${continuousClass}`.trim()}>
       {/* 상대방 메시지일 때: 왼쪽에 아바타 */}
       {!isMe && showSenderInfo && (
-        <div className="flex-shrink-0">
-          {/* 여기에 실제 프로필 사진 넣기 (나중엔 백엔드에서 photoUrl 받아오면 좋음) */}
-          <div
-            className="w-9 h-9 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-white text-sm font-medium"
-            title={senderDisplayName}
-          >
-            {avatarLabel}
-          </div>
+        <div
+          className={`chat-msg-avatar ${isAdminSender ? "admin" : ""}`}
+          title={senderDisplayName}
+          style={{
+            background: isAdminSender ? "#f59e0b" : "#7f93b2",
+          }}
+        >
+          {avatarLabel}
+          {isAdminSender && (
+            <span className="chat-msg-avatar__crown" aria-hidden="true">
+              👑
+            </span>
+          )}
         </div>
       )}
 
       {/* 연속 메시지면 아바타 공간만큼 패딩 유지 */}
-      {!isMe && !showSenderInfo && <div className="w-9 flex-shrink-0" />}
+      {!isMe && !showSenderInfo && <div className="chat-msg-avatar-spacer" />}
 
-      <div
-        className={`flex flex-col max-w-[70%] ${isMe ? "items-end" : "items-start"}`}
-      >
+      <div className={`chat-bubble-wrap ${isMe ? "me" : "other"}`}>
         {/* 상대방일 때만 이름 표시 (연속 메시지면 숨김) */}
         {!isMe && showSenderInfo && (
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 px-1">
+          <div className="chat-sender-name">
             {senderDisplayName}
           </div>
         )}
 
         {/* 말풍선 */}
-        <div
-          className={`
-            relative px-4 py-2.5 rounded-2xl text-sm break-words leading-relaxed
-            ${
-              isMe
-                ? "bg-[#fee500] text-black rounded-br-none" // 카카오톡 노란색 느낌
-                : "bg-white dark:bg-gray-700 text-black dark:text-white rounded-bl-none shadow-sm"
-            }
-          `}
-        >
+        <div className={`chat-bubble ${isMe ? "me" : "other"} ${isAdminSender ? "admin" : ""}`}>
           {content}
         </div>
 
         {/* 시간 (내 메시지는 오른쪽, 상대는 왼쪽 아래) */}
-        <div className="text-[10px] text-gray-400 mt-0.5 px-1 flex items-center gap-1">
+        <div className={`chat-msg-meta ${isMe ? "me" : ""}`.trim()}>
           {timeStr}
           {isMe && (
             <>
               {status === "sending" && (
-                <span className="text-blue-500 font-medium">전송 중...</span>
+                <span className="chat-msg-unread">전송 중...</span>
               )}
               {status === "sent" && (
                 <>
                   {!isRead ? (
-                    <span className="text-gray-400">✓</span>
+                    <span className="chat-msg-unread">✓</span>
                   ) : (
-                    <span className="text-blue-500 font-bold">✓✓</span>
+                    <span className="chat-msg-read">✓✓</span>
                   )}
                 </>
               )}
               {status === "failed" && (
-                <span className="text-red-500 font-medium">전송 실패</span>
+                <span className="chat-msg-unread">전송 실패</span>
               )}
             </>
           )}

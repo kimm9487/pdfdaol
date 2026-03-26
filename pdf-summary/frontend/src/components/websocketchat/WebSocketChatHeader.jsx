@@ -1,17 +1,35 @@
 // src/components/websocketchat/ChatHeader.jsx
-export default function ChatHeader({ isConnected, onlineCount = 0 }) {
+const TAB_TITLE = {
+  users: "실시간 유저",
+  chat: "실시간 채팅",
+  dm: "귓속말[중요 문서]",
+};
+
+export default function ChatHeader({
+  isConnected,
+  onlineCount = 0,
+  activeTab = "chat",
+  onClose,
+}) {
+  const title = TAB_TITLE[activeTab] || TAB_TITLE.chat;
+
   return (
-    <div className="px-4 py-3.5 bg-blue-600 text-white font-semibold flex items-center justify-between shadow-sm">
-      <span className="chat-inner-title flex items-center gap-2">
-        실시간 채팅
-        {/* 동적 접속 인원 뱃지 */}
+    <div className="chat-header">
+      <div className="chat-header__title">
+        <span className="chat-header__live-dot" />
+        <span>{title}</span>
+        {activeTab === "chat" && <span className="chat-header__live-tag">LIVE</span>}
+      </div>
+
+      <div className="chat-header__actions">
         {onlineCount > 0 && (
           <span className="chat-online-count">{onlineCount}명 접속 중</span>
         )}
-      </span>
-      <span className="chat-conn-status text-sm opacity-90">
-        {isConnected ? "(연결됨)" : "(연결 시도 중...)"}
-      </span>
+        <span className="chat-header__badge">{isConnected ? "연결됨" : "재연결 중"}</span>
+        <button type="button" className="chat-header__close" onClick={onClose} aria-label="채팅 닫기">
+          ✕
+        </button>
+      </div>
     </div>
   );
 }

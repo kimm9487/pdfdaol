@@ -124,7 +124,17 @@ websocket_app = socketio.ASGIApp(sio)
 
 # ==================== 공유 상태 ====================
 sid_to_user = {}
+sid_to_role = {}
+sid_to_session_token = {}
+sid_to_dm_room = {}
 online_users_local = {}
+online_user_roles_local = {}
+user_names_cache = {}
+dm_history_local = {}
+dm_threads_local = {}  # {user_id: set(partner_user_id, ...)}
+dm_last_read_local = {}  # {user_id: {partner_user_id: iso_timestamp}}
+banned_users_local = {}  # {user_id: {reason, by, byName, bannedAt, banSeconds, expiresAtTs, ...}}
+kicked_session_tokens_local = {}  # {user_id: set(session_token, ...)}
 
 _last_broadcast_time = 0.0
 _pending_broadcast = False
@@ -134,6 +144,7 @@ _prev_online_users_hash = None
 CHAT_HISTORY_KEY = "chat:history"
 MAX_HISTORY = 1000
 ONLINE_USERS_KEY = "chat:online_users"
+ONLINE_USER_ROLES_KEY = "chat:online_user_roles"
 ONLINE_USERS_UPDATE_CHANNEL = "chat:online:update"
 
 
