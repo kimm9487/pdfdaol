@@ -58,7 +58,7 @@ def get_admin_documents(
                         "username": doc.owner.username if doc.owner else None,
                         "full_name": doc.owner.full_name if doc.owner else "알수없음"
                     },
-                    "summary": doc.summary if doc.summary else "요약 내용이 없습니다.",
+                    "summary": doc.summary if doc.summary else "",
                     "extracted_text": doc.extracted_text,
                     "password": doc.password,
                     "category": doc.category,

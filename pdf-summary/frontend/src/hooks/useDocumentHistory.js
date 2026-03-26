@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { buildApiUrl } from "../config/api";
 import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
@@ -23,7 +24,7 @@ export const useDocumentHistory = () => {
 
       const profileResponse = await fetch(
         buildApiUrl(`/auth/profile/${userDbId}`),
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       let userRole = "user";
       if (profileResponse.ok) {
@@ -35,7 +36,9 @@ export const useDocumentHistory = () => {
       const historyUrl =
         userRole === "admin"
           ? buildApiUrl("/api/admin/documents?limit=1000")
-          : buildApiUrl(`/api/documents/users/${userDbId}/documents?limit=1000`);
+          : buildApiUrl(
+              `/api/documents/users/${userDbId}/documents?limit=1000`,
+            );
 
       const historyResponse = await fetch(historyUrl, { cache: "no-store" });
       if (historyResponse.ok) {
@@ -47,12 +50,13 @@ export const useDocumentHistory = () => {
             fileName: doc.filename,
             model: doc.model_used || doc.translation_model || "미선택",
             status:
-              doc.summary && String(doc.summary).trim() && doc.summary !== "요약 내용이 없습니다."
+              doc.summary &&
+              String(doc.summary).trim() &&
+              doc.summary !== "요약 내용이 없습니다."
                 ? "완료"
                 : "추출완료",
             is_public:
-              String(doc.is_public) === "true" ||
-              String(doc.is_public) === "1",
+              String(doc.is_public) === "true" || String(doc.is_public) === "1",
             is_important:
               doc.is_important === true || String(doc.is_important) === "1",
           }));
@@ -79,7 +83,7 @@ export const useDocumentHistory = () => {
       const userDbId = localStorage.getItem("userDbId");
       const response = await fetch(
         buildApiUrl(`/api/documents/documents/${docId}?user_id=${userDbId}`),
-        { method: "GET" }
+        { method: "GET" },
       );
       if (response.ok) {
         return await response.json();
@@ -109,7 +113,7 @@ export const useDocumentHistory = () => {
             is_important: updatedData.isImportant,
             password: updatedData.password,
           }),
-        }
+        },
       );
       if (response.ok) {
         setHistory((prev) =>
@@ -121,8 +125,8 @@ export const useDocumentHistory = () => {
                   summary: updatedData.summary,
                   is_important: updatedData.isImportant,
                 }
-              : doc
-          )
+              : doc,
+          ),
         );
         toast.success("문서 정보가 성공적으로 수정되었습니다.");
         return true;
@@ -140,11 +144,14 @@ export const useDocumentHistory = () => {
     if (!window.confirm(`"${fileName}"을(를) 삭제하시겠습니까?`)) return false;
     try {
       const userDbId = localStorage.getItem("userDbId");
-      const response = await fetch(buildApiUrl(`/api/documents/documents/${docId}`), {
-        method: "DELETE",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ user_id: String(userDbId) }).toString(),
-      });
+      const response = await fetch(
+        buildApiUrl(`/api/documents/documents/${docId}`),
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ user_id: String(userDbId) }).toString(),
+        },
+      );
       if (response.ok) {
         setHistory((prev) => prev.filter((doc) => doc.id !== docId));
         toast.success("문서가 삭제되었습니다.");
@@ -157,6 +164,35 @@ export const useDocumentHistory = () => {
       toast.error("오류가 발생했습니다.");
       return false;
     }
+  };
+
+  // [추가 2026-03-19] 170~196줄: 일괄 삭제 함수 - 선택된 id 배열을 병렬로 DELETE 요청
+  const deleteBulk = async (ids) => {
+    if (!ids.length) return 0;
+    const userDbId = localStorage.getItem("userDbId");
+    let successCount = 0;
+    await Promise.all(
+      ids.map(async (docId) => {
+        try {
+          const res = await fetch(
+            buildApiUrl(`/api/documents/documents/${docId}`),
+            {
+              method: "DELETE",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                user_id: String(userDbId),
+              }).toString(),
+            },
+          );
+          if (res.ok) successCount++;
+        } catch (_) {}
+      }),
+    );
+    if (successCount > 0) {
+      setHistory((prev) => prev.filter((doc) => !ids.includes(doc.id)));
+      toast.success(`${successCount}개 문서가 삭제되었습니다.`);
+    }
+    return successCount;
   };
 
   const togglePublic = async (item) => {
@@ -172,13 +208,13 @@ export const useDocumentHistory = () => {
             user_id: parseInt(userDbId),
             is_public: newPublicStatus,
           }),
-        }
+        },
       );
       if (response.ok) {
         setHistory((prev) =>
           prev.map((doc) =>
-            doc.id === item.id ? { ...doc, is_public: newPublicStatus } : doc
-          )
+            doc.id === item.id ? { ...doc, is_public: newPublicStatus } : doc,
+          ),
         );
         return true;
       }
@@ -216,6 +252,7 @@ export const useDocumentHistory = () => {
     fetchDocument,
     saveSummary,
     deleteDocument,
+    deleteBulk, // [추가 2026-03-19] 248줄: 일괄 삭제 함수 export
     togglePublic,
     deleteAccount,
     setHistory, // Exposing setHistory for direct manipulation if needed

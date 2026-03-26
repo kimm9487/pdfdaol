@@ -123,9 +123,10 @@ const FilterSection = ({
             }
           >
             <option value="전체">분류: 전체</option>
-            <option value="강의">강의</option>
-            <option value="법률안">법률안</option>
-            <option value="보고서">보고서</option>
+            <option value="법령·규정">법령·규정</option>
+            <option value="행정·공문">행정·공문</option>
+            <option value="보고·계획">보고·계획</option>
+            <option value="재정·계약">재정·계약</option>
             <option value="기타">기타</option>
           </select>
           <select

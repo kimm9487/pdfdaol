@@ -1,0 +1,316 @@
+/* [2026-03-25 osj] 가이드 챗봇 스타일 */
+
+/* ===== 토글 버튼 ===== */
+.guide-chatbot-toggle {
+  position: fixed;
+  bottom: 28px;
+  left: 28px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  color: white;
+  font-size: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  background: linear-gradient(145deg, #5ecba1 0%, #27ae60 55%, #1e8449 100%);
+  box-shadow:
+    0 5px 18px rgba(39, 174, 96, 0.48),
+    0 1px 4px rgba(39, 174, 96, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition:
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.2s,
+    left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+  animation: guide-btn-breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes guide-btn-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 5px 18px rgba(39, 174, 96, 0.48),
+      0 1px 4px rgba(39, 174, 96, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 6px 24px rgba(39, 174, 96, 0.65),
+      0 2px 6px rgba(39, 174, 96, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+}
+
+.guide-chatbot-toggle::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    rgba(255, 255, 255, 0.32),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.guide-chatbot-toggle:hover::before {
+  opacity: 1;
+}
+
+.guide-chatbot-toggle:hover {
+  transform: translateY(-3px) scale(1.07);
+  box-shadow:
+    0 10px 26px rgba(39, 174, 96, 0.55),
+    0 3px 8px rgba(39, 174, 96, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  animation: none;
+}
+
+.guide-chatbot-toggle:active {
+  transform: scale(0.91);
+  animation: guide-click-burst 0.4s ease-out forwards;
+}
+
+@keyframes guide-click-burst {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(39, 174, 96, 0.5),
+      0 2px 8px rgba(39, 174, 96, 0.35);
+  }
+  60% {
+    box-shadow:
+      0 0 0 14px rgba(39, 174, 96, 0),
+      0 2px 8px rgba(39, 174, 96, 0.35);
+  }
+  100% {
+    box-shadow:
+      0 0 0 18px rgba(39, 174, 96, 0),
+      0 2px 8px rgba(39, 174, 96, 0.35);
+  }
+}
+
+.guide-chatbot-toggle > svg {
+  position: relative;
+  z-index: 2;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.guide-chatbot-toggle:hover > svg {
+  transform: scale(1.1);
+}
+
+.guide-chatbot-toggle.open {
+  left: 334px; /* 패널 너비(360px) - 버튼 반지름(26px) */
+  background: linear-gradient(145deg, #95a5a6 0%, #636e72 55%, #535c5e 100%);
+  box-shadow:
+    0 5px 18px rgba(99, 110, 114, 0.45),
+    0 1px 4px rgba(99, 110, 114, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: none;
+}
+
+/* ===== 사이드 패널 ===== */
+.guide-chatbot-panel {
+  position: fixed;
+  top: 0;
+  left: -380px; /* 닫힌 상태: 화면 밖 */
+  width: 360px;
+  height: 100dvh;
+  background: #ffffff;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-right: 1px solid #e0e0e0;
+}
+
+.guide-chatbot-panel.panel-open {
+  left: 0;
+}
+
+/* ===== 패널 헤더 ===== */
+.guide-chatbot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  background: #3498db;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.guide-reset-btn {
+  background: rgba(255, 255, 255, 0.22);
+  border: none;
+  color: white;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.guide-reset-btn:hover {
+  background: rgba(255, 255, 255, 0.38);
+}
+
+/* ===== 카테고리 탭 ===== */
+.guide-category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+  background: #f8f9fa;
+}
+
+.guide-tab {
+  padding: 5px 11px;
+  border-radius: 16px;
+  border: 1px solid #dee2e6;
+  background: white;
+  font-size: 12px;
+  cursor: pointer;
+  color: #555;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+  white-space: nowrap;
+}
+
+.guide-tab:hover {
+  background: #e8f4fd;
+  border-color: #3498db;
+  color: #3498db;
+}
+
+.guide-tab.active {
+  background: #3498db;
+  border-color: #3498db;
+  color: white;
+  font-weight: 600;
+}
+
+/* ===== 채팅 메시지 영역 ===== */
+.guide-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide-bubble {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 92%;
+}
+
+.guide-bubble-bot {
+  align-self: flex-start;
+}
+
+.guide-bubble-user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.guide-bot-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.guide-bubble-text {
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.guide-bubble-bot .guide-bubble-text {
+  background: #f0f7ff;
+  color: #2d3436;
+  border-bottom-left-radius: 4px;
+}
+
+.guide-bubble-user .guide-bubble-text {
+  background: #3498db;
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+/* ===== 질문 버튼 목록 ===== */
+.guide-questions {
+  flex-shrink: 0;
+  padding: 10px 14px 18px;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 38vh;
+  overflow-y: auto;
+}
+
+.guide-questions-label {
+  font-size: 11px;
+  color: #aaa;
+  margin: 0 0 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.guide-question-btn {
+  text-align: left;
+  padding: 8px 12px;
+  border: 1px solid #dfe6e9;
+  border-radius: 8px;
+  background: white;
+  font-size: 13px;
+  color: #2d3436;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+  line-height: 1.4;
+}
+
+.guide-question-btn:hover {
+  background: #e8f4fd;
+  border-color: #3498db;
+  color: #3498db;
+}
+
+/* ===== 외부 클릭 backdrop ===== */
+.guide-chatbot-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1040;
+  background: transparent;
+}
+
+/* ===== 반응형 (작은 화면) ===== */
+@media (max-width: 480px) {
+  .guide-chatbot-panel {
+    width: 100vw;
+    left: -100vw;
+  }
+}

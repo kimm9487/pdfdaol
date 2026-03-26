@@ -17,7 +17,8 @@ import MyPage from "./pages/MyPage"; // 이재윤 MyPage 컴포넌트 분리
 import AdminDashboard from "./pages/AdminDashboard";
 import UserList from "./pages/UserList"; // 정재훈 추가 (2026-02-27): 전체 요약/사용자 목록 조회 페이지 (관리자 전용)
 import WebSocketChat from "./components/WebSocketChat";
-
+// [2026-03-25 osj] 가이드 챗봇 - 전체 페이지 공통
+import GuideChatbot from "./components/GuideChatbot/GuideChatbot";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
@@ -81,6 +82,9 @@ function App() {
 
       {/* 실시간 채팅 위젯 */}
       <WebSocketChat />
+
+      {/* [2026-03-25 osj] 가이드 챗봇 - 로그인 시 전체 페이지 표시 */}
+      {isLoggedIn && <GuideChatbot />}
 
       {isLoggedIn && <Header setIsLoggedIn={setIsLoggedIn} />}
       <Routes>

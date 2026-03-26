@@ -1,0 +1,273 @@
+2026-03-18 02:08:41,242 INFO sqlalchemy.engine.Engine SELECT DATABASE()
+2026-03-18 02:08:41,242 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-03-18 02:08:41,248 INFO sqlalchemy.engine.Engine SELECT @@sql_mode
+2026-03-18 02:08:41,248 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-03-18 02:08:41,250 INFO sqlalchemy.engine.Engine SELECT @@lower_case_table_names
+2026-03-18 02:08:41,251 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-03-18 02:08:41,256 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:08:41,256 INFO sqlalchemy.engine.Engine DESCRIBE `pdf_summary`.`users`
+2026-03-18 02:08:41,256 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-03-18 02:08:41,259 INFO sqlalchemy.engine.Engine DESCRIBE `pdf_summary`.`user_sessions`
+2026-03-18 02:08:41,260 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-03-18 02:08:41,262 INFO sqlalchemy.engine.Engine DESCRIBE `pdf_summary`.`admin_activity_logs`
+2026-03-18 02:08:41,263 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-03-18 02:08:41,266 INFO sqlalchemy.engine.Engine DESCRIBE `pdf_summary`.`pdf_documents`
+2026-03-18 02:08:41,266 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-03-18 02:08:41,270 INFO sqlalchemy.engine.Engine COMMIT
+✅ 데이터베이스 테이블 자동 생성 완료
+2026-03-18 02:08:41,473 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:08:41,473 INFO sqlalchemy.engine.Engine DESCRIBE `pdf_summary`.`users`
+2026-03-18 02:08:41,473 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-03-18 02:08:41,477 INFO sqlalchemy.engine.Engine DESCRIBE `pdf_summary`.`user_sessions`
+2026-03-18 02:08:41,477 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-03-18 02:08:41,481 INFO sqlalchemy.engine.Engine DESCRIBE `pdf_summary`.`admin_activity_logs`
+2026-03-18 02:08:41,481 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-03-18 02:08:41,484 INFO sqlalchemy.engine.Engine DESCRIBE `pdf_summary`.`pdf_documents`
+2026-03-18 02:08:41,484 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-03-18 02:08:41,488 INFO sqlalchemy.engine.Engine COMMIT
+✅ 데이터베이스 테이블 자동 생성 완료
+INFO:     172.18.0.1:57954 - "GET /api/documents/ocr-models HTTP/1.1" 200 OK
+INFO:     172.18.0.1:57954 - "GET /api/documents/ocr-models HTTP/1.1" 200 OK
+INFO:     172.18.0.1:57938 - "GET /api/documents/models HTTP/1.1" 200 OK
+INFO:     172.18.0.1:57938 - "GET /api/documents/models HTTP/1.1" 200 OK
+INFO:     172.18.0.1:57958 - "POST /api/documents/extract-chat HTTP/1.1" 200 OK
+INFO:     172.18.0.1:57958 - "POST /api/documents/extract-chat HTTP/1.1" 200 OK
+INFO:     172.18.0.1:43492 - "POST /api/documents/chat-summarize/stream HTTP/1.1" 200 OK
+INFO:     172.18.0.1:56862 - "GET /api/documents/ocr-models HTTP/1.1" 200 OK
+INFO:     172.18.0.1:56862 - "GET /api/documents/ocr-models HTTP/1.1" 200 OK
+INFO:     172.18.0.1:56856 - "GET /api/documents/models HTTP/1.1" 200 OK
+INFO:     172.18.0.1:56856 - "GET /api/documents/models HTTP/1.1" 200 OK
+INFO:     172.18.0.1:56866 - "GET /api/documents/models HTTP/1.1" 200 OK
+INFO:     172.18.0.1:56874 - "GET /api/documents/ocr-models HTTP/1.1" 200 OK
+INFO:     172.18.0.1:56866 - "GET /api/documents/models HTTP/1.1" 200 OK
+INFO:     172.18.0.1:56866 - "GET /api/documents/ocr-models HTTP/1.1" 200 OK
+2026-03-18 02:27:11,081 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:27:11,086 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.provider AS users_provider, users.role AS users_role, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.last_login_at AS users_last_login_at, users.is_active AS users_is_active 
+FROM users 
+WHERE users.id = %(id_1)s 
+ LIMIT %(param_1)s
+2026-03-18 02:27:11,086 INFO sqlalchemy.engine.Engine [generated in 0.00047s] {'id_1': 1, 'param_1': 1}
+2026-03-18 02:27:11,100 INFO sqlalchemy.engine.Engine SELECT user_sessions.id AS user_sessions_id, user_sessions.user_id AS user_sessions_user_id, user_sessions.session_token AS user_sessions_session_token, user_sessions.created_at AS user_sessions_created_at, user_sessions.expires_at AS user_sessions_expires_at, user_sessions.is_active AS user_sessions_is_active, user_sessions.ip_address AS user_sessions_ip_address, user_sessions.user_agent AS user_sessions_user_agent 
+FROM user_sessions 
+WHERE user_sessions.user_id = %(user_id_1)s AND user_sessions.session_token = %(session_token_1)s 
+ LIMIT %(param_1)s
+2026-03-18 02:27:11,100 INFO sqlalchemy.engine.Engine [generated in 0.00030s] {'user_id_1': 1, 'session_token_1': '56c39120-5e63-4675-8a09-3f8f280e0882', 'param_1': 1}
+INFO:     172.18.0.1:56866 - "GET /auth/sessions/validate?user_id=1&session_token=56c39120-5e63-4675-8a09-3f8f280e0882 HTTP/1.1" 200 OK
+2026-03-18 02:27:11,105 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     172.18.0.1:37822 - "POST /api/documents/extract HTTP/1.1" 200 OK
+2026-03-18 02:27:18,316 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:27:18,319 INFO sqlalchemy.engine.Engine INSERT INTO pdf_documents (user_id, filename, extracted_text, summary, ocr_model, model_used, char_count, created_at, updated_at, original_translation, summary_translation, translation_model, extraction_time_seconds, summary_time_seconds, translation_time_seconds, file_size_bytes, total_pages, successful_pages, category, is_important, password, is_public) VALUES (%(user_id)s, %(filename)s, %(extracted_text)s, %(summary)s, %(ocr_model)s, %(model_used)s, %(char_count)s, %(created_at)s, %(updated_at)s, %(original_translation)s, %(summary_translation)s, %(translation_model)s, %(extraction_time_seconds)s, %(summary_time_seconds)s, %(translation_time_seconds)s, %(file_size_bytes)s, %(total_pages)s, %(successful_pages)s, %(category)s, %(is_important)s, %(password)s, %(is_public)s)
+2026-03-18 02:27:18,319 INFO sqlalchemy.engine.Engine [generated in 0.00039s] {'user_id': 1, 'filename': '김규호_소스코드설명.docx', 'extracted_text': '1.\n메인화면\n대상 파일:\n- `pdf-summary/frontend/\nsrc\n/\nApp.jsx\n`\n- `pdf-summary/frontend/\nsrc\n/pages/\nPdfSummary.jsx\n`\n- `pdf-summary/backend/rou ... (14143 characters truncated) ... ocr_extractor.py`\n-\n`pdf-summary/backend/services/\nocr\n/paddleocr_extractor.py`\n-\n`pdf-summary/backend/services/\nocr\n/tesseract_extractor.py`', 'summary': None, 'ocr_model': 'paddleocr', 'model_used': None, 'char_count': 12696, 'created_at': datetime.datetime(2026, 3, 18, 2, 27, 18, 319181), 'updated_at': datetime.datetime(2026, 3, 18, 2, 27, 18, 319185), 'original_translation': None, 'summary_translation': None, 'translation_model': None, 'extraction_time_seconds': 0.0, 'summary_time_seconds': None, 'translation_time_seconds': None, 'file_size_bytes': 32712, 'total_pages': 1, 'successful_pages': 1, 'category': '기타', 'is_important': 0, 'password': None, 'is_public': 1}
+2026-03-18 02:27:18,347 INFO sqlalchemy.engine.Engine COMMIT
+2026-03-18 02:27:18,359 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:27:18,361 INFO sqlalchemy.engine.Engine SELECT pdf_documents.id, pdf_documents.user_id, pdf_documents.filename, pdf_documents.extracted_text, pdf_documents.summary, pdf_documents.ocr_model, pdf_documents.model_used, pdf_documents.char_count, pdf_documents.created_at, pdf_documents.updated_at, pdf_documents.original_translation, pdf_documents.summary_translation, pdf_documents.translation_model, pdf_documents.extraction_time_seconds, pdf_documents.summary_time_seconds, pdf_documents.translation_time_seconds, pdf_documents.file_size_bytes, pdf_documents.total_pages, pdf_documents.successful_pages, pdf_documents.category, pdf_documents.is_important, pdf_documents.password, pdf_documents.is_public 
+FROM pdf_documents 
+WHERE pdf_documents.id = %(pk_1)s
+2026-03-18 02:27:18,361 INFO sqlalchemy.engine.Engine [generated in 0.00024s] {'pk_1': 148}
+2026-03-18 02:27:38,739 INFO sqlalchemy.engine.Engine COMMIT
+2026-03-18 02:27:38,795 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:27:38,803 INFO sqlalchemy.engine.Engine SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents 
+WHERE pdf_documents.id = %(pk_1)s
+2026-03-18 02:27:38,803 INFO sqlalchemy.engine.Engine [generated in 0.00040s] {'pk_1': 148}
+2026-03-18 02:27:38,863 INFO sqlalchemy.engine.Engine INSERT INTO admin_activity_logs (admin_user_id, action, target_type, target_id, details, created_at, ip_address) VALUES (%(admin_user_id)s, %(action)s, %(target_type)s, %(target_id)s, %(details)s, %(created_at)s, %(ip_address)s)
+2026-03-18 02:27:38,863 INFO sqlalchemy.engine.Engine [generated in 0.00025s] {'admin_user_id': 1, 'action': 'DOCUMENT_UPLOADED', 'target_type': 'DOCUMENT', 'target_id': 148, 'details': '{"filename": "\\uae40\\uaddc\\ud638_\\uc18c\\uc2a4\\ucf54\\ub4dc\\uc124\\uba85.docx", "file_size_bytes": 32712, "ocr_model": "paddleocr", "category": "\\uae30\\ud0c0", "is_important": false, "is_public": true}', 'created_at': datetime.datetime(2026, 3, 18, 2, 27, 38, 861501), 'ip_address': '172.18.0.1'}
+2026-03-18 02:27:38,882 INFO sqlalchemy.engine.Engine COMMIT
+✅ 관리자 활동 로그 기록: DOCUMENT_UPLOADED by User#1
+2026-03-18 02:27:38,909 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:27:38,909 INFO sqlalchemy.engine.Engine SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents 
+WHERE pdf_documents.id = %(pk_1)s
+2026-03-18 02:27:38,909 INFO sqlalchemy.engine.Engine [cached since 0.1063s ago] {'pk_1': 148}
+2026-03-18 02:27:38,923 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-03-18 02:28:06,632 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:28:06,633 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.provider AS users_provider, users.role AS users_role, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.last_login_at AS users_last_login_at, users.is_active AS users_is_active 
+FROM users 
+WHERE users.id = %(id_1)s 
+ LIMIT %(param_1)s
+2026-03-18 02:28:06,633 INFO sqlalchemy.engine.Engine [cached since 55.55s ago] {'id_1': 1, 'param_1': 1}
+2026-03-18 02:28:06,642 INFO sqlalchemy.engine.Engine SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents 
+WHERE pdf_documents.id = %(id_1)s 
+ LIMIT %(param_1)s
+2026-03-18 02:28:06,642 INFO sqlalchemy.engine.Engine [generated in 0.00032s] {'id_1': 148, 'param_1': 1}
+INFO:     172.18.0.1:60458 - "POST /api/documents/summarize-document HTTP/1.1" 200 OK
+2026-03-18 02:29:47,710 INFO sqlalchemy.engine.Engine UPDATE pdf_documents SET summary=%(summary)s, model_used=%(model_used)s, updated_at=%(updated_at)s, summary_time_seconds=%(summary_time_seconds)s WHERE pdf_documents.id = %(pdf_documents_id)s
+2026-03-18 02:29:47,710 INFO sqlalchemy.engine.Engine [generated in 0.00025s] {'summary': '## PDF 문서 요약\n\n1. **전체 내용 요약:**\n   이 문서는 PDF 문서 요약 서비스의 백엔드 구현에 대한 상세 내용을 담고 있습니다. 기능적으로는 로그인 보호, 문서 접근 권한 관리, 요약 및 추출 API, 관리자 대시보드, 사용자 마이페이지 등 다 ... (524 characters truncated) ...  맞춤형 기능:** 사용자 프로필 관리, 비밀번호 변경, 계정 탈퇴 등 사용자 맞춤형 기능을 제공합니다.\n   * **API 연계 구성:** `/api` 경로와 일반 경로를 분리하여 호출 일관성을 확보하고, 환경변수를 기반으로 로컬/배포 환경 전환을 지원합니다.\n', 'model_used': 'gemma3:latest', 'updated_at': datetime.datetime(2026, 3, 18, 2, 29, 47, 709359), 'summary_time_seconds': 101.059, 'pdf_documents_id': 148}
+2026-03-18 02:29:47,726 INFO sqlalchemy.engine.Engine COMMIT
+2026-03-18 02:29:47,733 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:29:47,733 INFO sqlalchemy.engine.Engine SELECT pdf_documents.id, pdf_documents.user_id, pdf_documents.filename, pdf_documents.extracted_text, pdf_documents.summary, pdf_documents.ocr_model, pdf_documents.model_used, pdf_documents.char_count, pdf_documents.created_at, pdf_documents.updated_at, pdf_documents.original_translation, pdf_documents.summary_translation, pdf_documents.translation_model, pdf_documents.extraction_time_seconds, pdf_documents.summary_time_seconds, pdf_documents.translation_time_seconds, pdf_documents.file_size_bytes, pdf_documents.total_pages, pdf_documents.successful_pages, pdf_documents.category, pdf_documents.is_important, pdf_documents.password, pdf_documents.is_public 
+FROM pdf_documents 
+WHERE pdf_documents.id = %(pk_1)s
+2026-03-18 02:29:47,734 INFO sqlalchemy.engine.Engine [cached since 149.4s ago] {'pk_1': 148}
+2026-03-18 02:29:47,740 INFO sqlalchemy.engine.Engine INSERT INTO admin_activity_logs (admin_user_id, action, target_type, target_id, details, created_at, ip_address) VALUES (%(admin_user_id)s, %(action)s, %(target_type)s, %(target_id)s, %(details)s, %(created_at)s, %(ip_address)s)
+2026-03-18 02:29:47,740 INFO sqlalchemy.engine.Engine [cached since 128.9s ago] {'admin_user_id': 1, 'action': 'DOCUMENT_SUMMARIZED', 'target_type': 'DOCUMENT', 'target_id': 148, 'details': '{"filename": "\\uae40\\uaddc\\ud638_\\uc18c\\uc2a4\\ucf54\\ub4dc\\uc124\\uba85.docx", "llm_model": "gemma3:latest", "summary_length": 804}', 'created_at': datetime.datetime(2026, 3, 18, 2, 29, 47, 739931), 'ip_address': '172.18.0.1'}
+2026-03-18 02:29:47,743 INFO sqlalchemy.engine.Engine COMMIT
+✅ 관리자 활동 로그 기록: DOCUMENT_SUMMARIZED by User#1
+2026-03-18 02:29:47,747 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:29:47,748 INFO sqlalchemy.engine.Engine SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents 
+WHERE pdf_documents.id = %(pk_1)s
+2026-03-18 02:29:47,748 INFO sqlalchemy.engine.Engine [cached since 129s ago] {'pk_1': 148}
+2026-03-18 02:29:47,754 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     172.18.0.1:55702 - "GET /api/admin/chroma-status HTTP/1.1" 200 OK
+INFO:     172.18.0.1:55752 - "GET /api/admin/documents?limit=1000 HTTP/1.1" 307 Temporary Redirect
+2026-03-18 02:29:54,318 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:29:54,319 INFO sqlalchemy.engine.Engine SELECT VERSION()
+2026-03-18 02:29:54,320 INFO sqlalchemy.engine.Engine [generated in 0.00023s] {}
+2026-03-18 02:29:54,323 INFO sqlalchemy.engine.Engine SHOW TABLES
+2026-03-18 02:29:54,323 INFO sqlalchemy.engine.Engine [generated in 0.00022s] {}
+2026-03-18 02:29:54,330 INFO sqlalchemy.engine.Engine DESCRIBE pdf_documents
+2026-03-18 02:29:54,330 INFO sqlalchemy.engine.Engine [generated in 0.00024s] {}
+2026-03-18 02:29:54,340 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents) AS anon_1
+2026-03-18 02:29:54,340 INFO sqlalchemy.engine.Engine [generated in 0.00029s] {}
+2026-03-18 02:29:54,361 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents 
+WHERE pdf_documents.original_translation IS NOT NULL) AS anon_1
+2026-03-18 02:29:54,361 INFO sqlalchemy.engine.Engine [generated in 0.00035s] {}
+2026-03-18 02:29:54,370 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents 
+WHERE pdf_documents.summary_translation IS NOT NULL) AS anon_1
+2026-03-18 02:29:54,370 INFO sqlalchemy.engine.Engine [generated in 0.00021s] {}
+2026-03-18 02:29:54,374 INFO sqlalchemy.engine.Engine SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents ORDER BY pdf_documents.created_at DESC 
+ LIMIT %(param_1)s
+2026-03-18 02:29:54,374 INFO sqlalchemy.engine.Engine [generated in 0.00025s] {'param_1': 5}
+2026-03-18 02:29:54,385 INFO sqlalchemy.engine.Engine SELECT AVG(extraction_time_seconds) FROM pdf_documents WHERE extraction_time_seconds IS NOT NULL
+2026-03-18 02:29:54,385 INFO sqlalchemy.engine.Engine [generated in 0.00020s] {}
+2026-03-18 02:29:54,388 INFO sqlalchemy.engine.Engine SELECT AVG(summary_time_seconds) FROM pdf_documents WHERE summary_time_seconds IS NOT NULL
+2026-03-18 02:29:54,388 INFO sqlalchemy.engine.Engine [generated in 0.00018s] {}
+2026-03-18 02:29:54,390 INFO sqlalchemy.engine.Engine SELECT AVG(translation_time_seconds) FROM pdf_documents WHERE translation_time_seconds IS NOT NULL
+2026-03-18 02:29:54,390 INFO sqlalchemy.engine.Engine [generated in 0.00021s] {}
+INFO:     172.18.0.1:55708 - "GET /api/admin/database-status HTTP/1.1" 200 OK
+2026-03-18 02:29:54,414 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:29:54,415 INFO sqlalchemy.engine.Engine SELECT VERSION()
+2026-03-18 02:29:54,415 INFO sqlalchemy.engine.Engine [cached since 0.09549s ago] {}
+2026-03-18 02:29:54,417 INFO sqlalchemy.engine.Engine SHOW TABLES
+2026-03-18 02:29:54,417 INFO sqlalchemy.engine.Engine [cached since 0.09403s ago] {}
+2026-03-18 02:29:54,420 INFO sqlalchemy.engine.Engine DESCRIBE pdf_documents
+2026-03-18 02:29:54,420 INFO sqlalchemy.engine.Engine [cached since 0.08988s ago] {}
+2026-03-18 02:29:54,424 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents) AS anon_1
+2026-03-18 02:29:54,424 INFO sqlalchemy.engine.Engine [cached since 0.08454s ago] {}
+2026-03-18 02:29:54,427 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents 
+WHERE pdf_documents.original_translation IS NOT NULL) AS anon_1
+2026-03-18 02:29:54,427 INFO sqlalchemy.engine.Engine [cached since 0.06646s ago] {}
+2026-03-18 02:29:54,430 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents 
+WHERE pdf_documents.summary_translation IS NOT NULL) AS anon_1
+2026-03-18 02:29:54,430 INFO sqlalchemy.engine.Engine [cached since 0.06054s ago] {}
+2026-03-18 02:29:54,434 INFO sqlalchemy.engine.Engine SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents ORDER BY pdf_documents.created_at DESC 
+ LIMIT %(param_1)s
+2026-03-18 02:29:54,434 INFO sqlalchemy.engine.Engine [cached since 0.05967s ago] {'param_1': 5}
+2026-03-18 02:29:54,448 INFO sqlalchemy.engine.Engine SELECT AVG(extraction_time_seconds) FROM pdf_documents WHERE extraction_time_seconds IS NOT NULL
+2026-03-18 02:29:54,448 INFO sqlalchemy.engine.Engine [cached since 0.0632s ago] {}
+2026-03-18 02:29:54,451 INFO sqlalchemy.engine.Engine SELECT AVG(summary_time_seconds) FROM pdf_documents WHERE summary_time_seconds IS NOT NULL
+2026-03-18 02:29:54,451 INFO sqlalchemy.engine.Engine [cached since 0.06308s ago] {}
+2026-03-18 02:29:54,454 INFO sqlalchemy.engine.Engine SELECT AVG(translation_time_seconds) FROM pdf_documents WHERE translation_time_seconds IS NOT NULL
+2026-03-18 02:29:54,454 INFO sqlalchemy.engine.Engine [cached since 0.06377s ago] {}
+INFO:     172.18.0.1:55738 - "GET /api/admin/database-status HTTP/1.1" 200 OK
+2026-03-18 02:29:54,459 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-03-18 02:29:54,467 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-03-18 02:29:54,475 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:29:54,477 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.provider AS users_provider, users.role AS users_role, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.last_login_at AS users_last_login_at, users.is_active AS users_is_active 
+FROM users 
+WHERE users.id = %(id_1)s AND users.role = %(role_1)s 
+ LIMIT %(param_1)s
+2026-03-18 02:29:54,477 INFO sqlalchemy.engine.Engine [generated in 0.00023s] {'id_1': 1, 'role_1': 'admin', 'param_1': 1}
+2026-03-18 02:29:54,482 INFO sqlalchemy.engine.Engine SELECT user_sessions.id AS user_sessions_id, user_sessions.user_id AS user_sessions_user_id, user_sessions.session_token AS user_sessions_session_token, user_sessions.created_at AS user_sessions_created_at, user_sessions.expires_at AS user_sessions_expires_at, user_sessions.is_active AS user_sessions_is_active, user_sessions.ip_address AS user_sessions_ip_address, user_sessions.user_agent AS user_sessions_user_agent 
+FROM user_sessions 
+WHERE user_sessions.is_active = true ORDER BY user_sessions.created_at DESC 
+ LIMIT %(param_1)s, %(param_2)s
+2026-03-18 02:29:54,482 INFO sqlalchemy.engine.Engine [generated in 0.00022s] {'param_1': 0, 'param_2': 100}
+2026-03-18 02:29:54,491 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT user_sessions.id AS user_sessions_id, user_sessions.user_id AS user_sessions_user_id, user_sessions.session_token AS user_sessions_session_token, user_sessions.created_at AS user_sessions_created_at, user_sessions.expires_at AS user_sessions_expires_at, user_sessions.is_active AS user_sessions_is_active, user_sessions.ip_address AS user_sessions_ip_address, user_sessions.user_agent AS user_sessions_user_agent 
+FROM user_sessions 
+WHERE user_sessions.is_active = true) AS anon_1
+2026-03-18 02:29:54,491 INFO sqlalchemy.engine.Engine [generated in 0.00046s] {}
+2026-03-18 02:29:54,494 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.provider AS users_provider, users.role AS users_role, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.last_login_at AS users_last_login_at, users.is_active AS users_is_active 
+FROM users 
+WHERE users.id = %(id_1)s 
+ LIMIT %(param_1)s
+2026-03-18 02:29:54,494 INFO sqlalchemy.engine.Engine [cached since 163.4s ago] {'id_1': 1, 'param_1': 1}
+2026-03-18 02:29:54,497 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.provider AS users_provider, users.role AS users_role, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.last_login_at AS users_last_login_at, users.is_active AS users_is_active 
+FROM users 
+WHERE users.id = %(id_1)s 
+ LIMIT %(param_1)s
+2026-03-18 02:29:54,497 INFO sqlalchemy.engine.Engine [cached since 163.4s ago] {'id_1': 5, 'param_1': 1}
+INFO:     172.18.0.1:55702 - "GET /api/admin/chroma-status HTTP/1.1" 200 OK
+INFO:     172.18.0.1:55738 - "GET /api/admin/documents?limit=1000 HTTP/1.1" 307 Temporary Redirect
+INFO:     172.18.0.1:55722 - "GET /auth/admin/sessions?admin_user_id=1 HTTP/1.1" 200 OK
+2026-03-18 02:29:54,590 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:29:54,591 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:29:54,592 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-03-18 02:29:54,593 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.provider AS users_provider, users.role AS users_role, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.last_login_at AS users_last_login_at, users.is_active AS users_is_active 
+FROM users ORDER BY users.created_at DESC
+2026-03-18 02:29:54,594 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.provider AS users_provider, users.role AS users_role, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.last_login_at AS users_last_login_at, users.is_active AS users_is_active 
+FROM users 
+WHERE users.id = %(id_1)s AND users.role = %(role_1)s 
+ LIMIT %(param_1)s
+2026-03-18 02:29:54,595 INFO sqlalchemy.engine.Engine [generated in 0.00117s] {}
+2026-03-18 02:29:54,595 INFO sqlalchemy.engine.Engine [cached since 0.1187s ago] {'id_1': 1, 'role_1': 'admin', 'param_1': 1}
+2026-03-18 02:29:54,610 INFO sqlalchemy.engine.Engine SELECT user_sessions.id AS user_sessions_id, user_sessions.user_id AS user_sessions_user_id, user_sessions.session_token AS user_sessions_session_token, user_sessions.created_at AS user_sessions_created_at, user_sessions.expires_at AS user_sessions_expires_at, user_sessions.is_active AS user_sessions_is_active, user_sessions.ip_address AS user_sessions_ip_address, user_sessions.user_agent AS user_sessions_user_agent 
+FROM user_sessions 
+WHERE user_sessions.is_active = true ORDER BY user_sessions.created_at DESC 
+ LIMIT %(param_1)s, %(param_2)s
+2026-03-18 02:29:54,611 INFO sqlalchemy.engine.Engine [cached since 0.1292s ago] {'param_1': 0, 'param_2': 100}
+2026-03-18 02:29:54,617 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT user_sessions.id AS user_sessions_id, user_sessions.user_id AS user_sessions_user_id, user_sessions.session_token AS user_sessions_session_token, user_sessions.created_at AS user_sessions_created_at, user_sessions.expires_at AS user_sessions_expires_at, user_sessions.is_active AS user_sessions_is_active, user_sessions.ip_address AS user_sessions_ip_address, user_sessions.user_agent AS user_sessions_user_agent 
+FROM user_sessions 
+WHERE user_sessions.is_active = true) AS anon_1
+2026-03-18 02:29:54,617 INFO sqlalchemy.engine.Engine [cached since 0.1263s ago] {}
+2026-03-18 02:29:54,621 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.provider AS users_provider, users.role AS users_role, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.last_login_at AS users_last_login_at, users.is_active AS users_is_active 
+FROM users 
+WHERE users.id = %(id_1)s 
+ LIMIT %(param_1)s
+2026-03-18 02:29:54,621 INFO sqlalchemy.engine.Engine [cached since 163.5s ago] {'id_1': 1, 'param_1': 1}
+2026-03-18 02:29:54,624 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:29:54,624 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.provider AS users_provider, users.role AS users_role, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.last_login_at AS users_last_login_at, users.is_active AS users_is_active 
+FROM users ORDER BY users.created_at DESC
+2026-03-18 02:29:54,625 INFO sqlalchemy.engine.Engine [cached since 0.03128s ago] {}
+2026-03-18 02:29:54,627 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.provider AS users_provider, users.role AS users_role, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.last_login_at AS users_last_login_at, users.is_active AS users_is_active 
+FROM users 
+WHERE users.id = %(id_1)s 
+ LIMIT %(param_1)s
+2026-03-18 02:29:54,628 INFO sqlalchemy.engine.Engine [cached since 163.6s ago] {'id_1': 5, 'param_1': 1}
+INFO:     172.18.0.1:55766 - "GET /api/admin/users/ HTTP/1.1" 200 OK
+INFO:     172.18.0.1:55708 - "GET /api/admin/users/ HTTP/1.1" 200 OK
+INFO:     172.18.0.1:55752 - "GET /auth/admin/sessions?admin_user_id=1 HTTP/1.1" 200 OK
+2026-03-18 02:29:54,648 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-03-18 02:29:54,648 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-03-18 02:29:54,649 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-03-18 02:29:54,651 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:29:54,658 INFO sqlalchemy.engine.Engine SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public, users_1.id AS users_1_id, users_1.username AS users_1_username, users_1.email AS users_1_email, users_1.password_hash AS users_1_password_hash, users_1.full_name AS users_1_full_name, users_1.provider AS users_1_provider, users_1.role AS users_1_role, users_1.created_at AS users_1_created_at, users_1.updated_at AS users_1_updated_at, users_1.last_login_at AS users_1_last_login_at, users_1.is_active AS users_1_is_active 
+FROM pdf_documents LEFT OUTER JOIN users AS users_1 ON users_1.id = pdf_documents.user_id ORDER BY pdf_documents.created_at DESC 
+ LIMIT %(param_1)s, %(param_2)s
+2026-03-18 02:29:54,659 INFO sqlalchemy.engine.Engine [generated in 0.00214s] {'param_1': 0, 'param_2': 1000}
+2026-03-18 02:29:54,701 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 02:29:54,702 INFO sqlalchemy.engine.Engine SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public, users_1.id AS users_1_id, users_1.username AS users_1_username, users_1.email AS users_1_email, users_1.password_hash AS users_1_password_hash, users_1.full_name AS users_1_full_name, users_1.provider AS users_1_provider, users_1.role AS users_1_role, users_1.created_at AS users_1_created_at, users_1.updated_at AS users_1_updated_at, users_1.last_login_at AS users_1_last_login_at, users_1.is_active AS users_1_is_active 
+FROM pdf_documents LEFT OUTER JOIN users AS users_1 ON users_1.id = pdf_documents.user_id ORDER BY pdf_documents.created_at DESC 
+ LIMIT %(param_1)s, %(param_2)s
+2026-03-18 02:29:54,703 INFO sqlalchemy.engine.Engine [cached since 0.04615s ago] {'param_1': 0, 'param_2': 1000}
+2026-03-18 02:29:54,740 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents) AS anon_1
+2026-03-18 02:29:54,740 INFO sqlalchemy.engine.Engine [cached since 0.3999s ago] {}
+INFO:     172.18.0.1:55702 - "GET /api/admin/documents/?limit=1000 HTTP/1.1" 200 OK
+2026-03-18 02:29:54,769 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-03-18 02:29:54,774 INFO sqlalchemy.engine.Engine SELECT count(*) AS count_1 
+FROM (SELECT pdf_documents.id AS pdf_documents_id, pdf_documents.user_id AS pdf_documents_user_id, pdf_documents.filename AS pdf_documents_filename, pdf_documents.extracted_text AS pdf_documents_extracted_text, pdf_documents.summary AS pdf_documents_summary, pdf_documents.ocr_model AS pdf_documents_ocr_model, pdf_documents.model_used AS pdf_documents_model_used, pdf_documents.char_count AS pdf_documents_char_count, pdf_documents.created_at AS pdf_documents_created_at, pdf_documents.updated_at AS pdf_documents_updated_at, pdf_documents.original_translation AS pdf_documents_original_translation, pdf_documents.summary_translation AS pdf_documents_summary_translation, pdf_documents.translation_model AS pdf_documents_translation_model, pdf_documents.extraction_time_seconds AS pdf_documents_extraction_time_seconds, pdf_documents.summary_time_seconds AS pdf_documents_summary_time_seconds, pdf_documents.translation_time_seconds AS pdf_documents_translation_time_seconds, pdf_documents.file_size_bytes AS pdf_documents_file_size_bytes, pdf_documents.total_pages AS pdf_documents_total_pages, pdf_documents.successful_pages AS pdf_documents_successful_pages, pdf_documents.category AS pdf_documents_category, pdf_documents.is_important AS pdf_documents_is_important, pdf_documents.password AS pdf_documents_password, pdf_documents.is_public AS pdf_documents_is_public 
+FROM pdf_documents) AS anon_1
+2026-03-18 02:29:54,775 INFO sqlalchemy.engine.Engine [cached since 0.4354s ago] {}
+INFO:     172.18.0.1:55738 - "GET /api/admin/documents/?limit=1000 HTTP/1.1" 200 OK
+2026-03-18 02:29:54,792 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     172.18.0.1:55738 - "GET /api/admin/chroma-status HTTP/1.1" 200 OK

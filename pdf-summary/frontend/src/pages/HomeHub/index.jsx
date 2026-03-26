@@ -19,7 +19,9 @@ const HomeHub = () => {
           type="button"
         >
           <span className="hub-title">추출 및 요약</span>
-          <span className="hub-desc">기존 방식: 파일 업로드 후 단계별 처리</span>
+          <span className="hub-desc">
+            기존 방식: 파일 업로드 후 단계별 처리
+          </span>
         </button>
 
         <button

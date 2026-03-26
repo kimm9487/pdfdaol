@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { API_BASE } from "../../config/api";
 import "./style.css";
 
-const CHAT_DEFAULT_MODEL = "qwen2.5:3b-instruct";
+const CHAT_DEFAULT_MODEL = "exaone3.5:2.4b";
+const MAX_EXTRACT_DOCS = 5;
 
 const IGNORED_PROMPT_PREFIXES = [
   "제공된 텍스트를 요약하세요",
@@ -50,14 +52,76 @@ const stripInstructionEcho = (text) => {
   return lines.slice(removeUntil).join("\n").trimStart();
 };
 
-const extractDropFile = (fileList) => {
-  if (!fileList || fileList.length === 0) return null;
-  return fileList[0] || null;
+const extractDropFiles = (fileList) => {
+  if (!fileList || fileList.length === 0) return [];
+  return Array.from(fileList);
+};
+
+const getFileExtension = (name = "") => {
+  const lower = String(name).toLowerCase();
+  const dotIndex = lower.lastIndexOf(".");
+  return dotIndex >= 0 ? lower.slice(dotIndex) : "";
+};
+
+const normalizeErrorMessage = (detail, fallback = "오류가 발생했습니다.") => {
+  if (!detail) return fallback;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const first = detail[0];
+    if (typeof first === "string") return first;
+    if (first && typeof first === "object") {
+      return first.msg || first.message || JSON.stringify(first);
+    }
+  }
+  if (typeof detail === "object") {
+    return detail.msg || detail.message || JSON.stringify(detail);
+  }
+  return fallback;
+};
+
+const buildCombinedDocumentText = (docs) => {
+  if (!Array.isArray(docs) || docs.length === 0) return "";
+  return docs
+    .map((doc, index) => {
+      const name = doc?.fileName || `문서 ${index + 1}`;
+      const text = doc?.text || "";
+      return `[문서 ${index + 1}: ${name}]\n${text}`;
+    })
+    .join("\n\n");
+};
+
+const getValidatedFiles = (files, currentCount = 0) => {
+  if (files.length > MAX_EXTRACT_DOCS || currentCount + files.length > MAX_EXTRACT_DOCS) {
+    toast.error("문서 추출은 5개까지만 가능합니다.");
+    return [];
+  }
+  return files;
+};
+
+const preferredChatModels = (models) => {
+  const uniqueModels = Array.from(new Set((models || []).filter(Boolean)));
+  const priority = ["exaone3.5:2.4b", "gemma3:latest"];
+  const ordered = [];
+
+  priority.forEach((model) => {
+    if (uniqueModels.includes(model)) ordered.push(model);
+  });
+
+  uniqueModels.forEach((model) => {
+    if (!ordered.includes(model)) ordered.push(model);
+  });
+
+  if (!ordered.length) return [CHAT_DEFAULT_MODEL];
+  if (!ordered.includes(CHAT_DEFAULT_MODEL)) {
+    ordered.unshift(CHAT_DEFAULT_MODEL);
+  }
+
+  return Array.from(new Set(ordered));
 };
 
 const ChatSummary = () => {
-  const [file, setFile] = useState(null);
-  const [models, setModels] = useState([CHAT_DEFAULT_MODEL, "gemma3:latest"]);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [models, setModels] = useState([CHAT_DEFAULT_MODEL]);
   const [selectedModel, setSelectedModel] = useState(CHAT_DEFAULT_MODEL);
   const [ocrModels, setOcrModels] = useState([{ id: "pypdf2", label: "기본 텍스트 추출" }]);
   const [selectedOcrModel, setSelectedOcrModel] = useState("pypdf2");
@@ -70,14 +134,16 @@ const ChatSummary = () => {
     },
   ]);
 
-  const [extractedText, setExtractedText] = useState("");
+  const [extractedDocs, setExtractedDocs] = useState([]);
   const [input, setInput] = useState("");
   const [loadingExtract, setLoadingExtract] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
   const [useRag, setUseRag] = useState(true);
   const [useLora, setUseLora] = useState(false);
+  const [expandedFileMessages, setExpandedFileMessages] = useState({});
   const [isGlobalDragging, setIsGlobalDragging] = useState(false);
   const [waitingFirstToken, setWaitingFirstToken] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const dragDepthRef = useRef(0);
 
   useEffect(() => {
@@ -91,11 +157,12 @@ const ChatSummary = () => {
         if (modelRes.ok) {
           const modelData = await modelRes.json();
           if (Array.isArray(modelData.models) && modelData.models.length > 0) {
-            const mergedModels = modelData.models.includes(CHAT_DEFAULT_MODEL)
-              ? modelData.models
-              : [CHAT_DEFAULT_MODEL, ...modelData.models];
-            setModels(mergedModels);
-            setSelectedModel(CHAT_DEFAULT_MODEL);
+            const uniqueModels = preferredChatModels(modelData.models);
+
+            setModels(uniqueModels);
+            setSelectedModel(
+              uniqueModels.includes(CHAT_DEFAULT_MODEL) ? CHAT_DEFAULT_MODEL : uniqueModels[0]
+            );
           }
         }
 
@@ -143,9 +210,12 @@ const ChatSummary = () => {
       preventDefaults(event);
       dragDepthRef.current = 0;
       setIsGlobalDragging(false);
-      const droppedFile = extractDropFile(event.dataTransfer?.files);
-      if (droppedFile) {
-        setFile(droppedFile);
+      const droppedFiles = getValidatedFiles(
+        extractDropFiles(event.dataTransfer?.files),
+        extractedDocs.length
+      );
+      if (droppedFiles.length > 0) {
+        setSelectedFiles(droppedFiles);
       }
     };
 
@@ -160,9 +230,10 @@ const ChatSummary = () => {
       window.removeEventListener("dragleave", handleDragLeave);
       window.removeEventListener("drop", handleDrop);
     };
-  }, [isGlobalDragging]);
+  }, [extractedDocs.length, isGlobalDragging]);
 
-  const isReadyForChat = useMemo(() => extractedText.trim().length > 0, [extractedText]);
+  const combinedDocumentText = useMemo(() => buildCombinedDocumentText(extractedDocs), [extractedDocs]);
+  const isReadyForChat = useMemo(() => combinedDocumentText.trim().length > 0, [combinedDocumentText]);
 
   const appendMessage = (role, content, meta = null) => {
     setMessages((prev) => [...prev, { role, content, meta }]);
@@ -189,37 +260,76 @@ const ChatSummary = () => {
     });
   };
 
+  const toggleFileMessage = (messageKey) => {
+    setExpandedFileMessages((prev) => ({
+      ...prev,
+      [messageKey]: !prev[messageKey],
+    }));
+  };
+
   const handleExtract = async () => {
-    if (!file) {
+    if (!selectedFiles.length) {
       appendMessage("assistant", "먼저 PDF 파일을 선택해 주세요.");
       return;
     }
 
+    if (selectedFiles.length > MAX_EXTRACT_DOCS || extractedDocs.length + selectedFiles.length > MAX_EXTRACT_DOCS) {
+      toast.error("문서 추출은 5개까지만 가능합니다.");
+      return;
+    }
+
+    if (
+      selectedOcrModel === "pypdf2" &&
+      selectedFiles.some((f) => getFileExtension(f.name) !== ".pdf")
+    ) {
+      toast.error("pypdf2 모델은 PDF 파일만 지원합니다.");
+      return;
+    }
+
     setLoadingExtract(true);
-    appendMessage("assistant", "문서 텍스트를 추출하고 있습니다. 잠시만 기다려 주세요...");
+    appendMessage(
+      "assistant",
+      `문서 텍스트를 추출하고 있습니다. 잠시만 기다려 주세요... (${selectedFiles.length}개)`
+    );
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("ocr_model", selectedOcrModel);
+      const extractedBatch = [];
 
-      const response = await fetch(`${API_BASE}/documents/extract-chat`, {
-        method: "POST",
-        body: formData,
-      });
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("ocr_model", selectedOcrModel);
+        formData.append("current_doc_count", String(extractedDocs.length + extractedBatch.length));
 
-      const data = await response.json();
-      if (!response.ok) {
-        appendMessage("assistant", data.detail || "텍스트 추출 중 오류가 발생했습니다.");
-        return;
+        const response = await fetch(`${API_BASE}/documents/extract-chat`, {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          const errorMsg = normalizeErrorMessage(data?.detail, "텍스트 추출 중 오류가 발생했습니다.");
+          appendMessage("assistant", `${file.name}: ${errorMsg}`);
+          continue;
+        }
+
+        const extracted = (data.extracted_text || "").trim();
+        extractedBatch.push({
+          fileName: data.filename || file.name,
+          text: extracted,
+        });
+        appendMessage("assistant", "파일 텍스트 추출이 완료되었습니다.", {
+          type: "file",
+          fileName: data.filename || file.name,
+          fileSize: formatFileSize(file.size),
+          extractedText: extracted,
+        });
       }
 
-      setExtractedText(data.extracted_text || "");
-      appendMessage("assistant", "파일 텍스트 추출이 완료되었습니다.", {
-        type: "file",
-        fileName: data.filename || file.name,
-        fileSize: formatFileSize(file.size),
-      });
+      if (extractedBatch.length > 0) {
+        setExtractedDocs((prev) => [...prev, ...extractedBatch]);
+      }
+      setSelectedFiles([]);
     } catch (error) {
       appendMessage("assistant", `추출 실패: ${error.message}`);
     } finally {
@@ -242,6 +352,7 @@ const ChatSummary = () => {
 
     setLoadingChat(true);
     setWaitingFirstToken(true);
+    setIsStreaming(false);
     try {
       appendMessage("assistant", "");
 
@@ -251,7 +362,7 @@ const ChatSummary = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          document_text: extractedText,
+          document_text: combinedDocumentText,
           instruction,
           model: selectedModel,
           user_id: userDbId ? parseInt(userDbId, 10) : null,
@@ -268,7 +379,7 @@ const ChatSummary = () => {
           if (idx >= 0 && next[idx].role === "assistant") {
             next[idx] = {
               ...next[idx],
-              content: data.detail || "응답 생성 중 오류가 발생했습니다.",
+              content: normalizeErrorMessage(data?.detail, "응답 생성 중 오류가 발생했습니다."),
             };
           }
           return next;
@@ -293,9 +404,59 @@ const ChatSummary = () => {
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
 
+      const applySsePayload = (payload) => {
+        if (payload.type === "token" && payload.text) {
+          setWaitingFirstToken(false);
+          setIsStreaming(true);
+          appendAssistantToken(payload.text);
+          return false;
+        }
+
+        if (payload.type === "done") {
+          setWaitingFirstToken(false);
+          setIsStreaming(false);
+          if (payload.answer) {
+            setMessages((prev) => {
+              const next = [...prev];
+              const idx = next.length - 1;
+              if (idx >= 0 && next[idx].role === "assistant" && !next[idx].content.trim()) {
+                next[idx] = {
+                  ...next[idx],
+                  content: stripInstructionEcho(payload.answer),
+                };
+              }
+              return next;
+            });
+          }
+          return true;
+        }
+
+        if (payload.type === "error") {
+          setWaitingFirstToken(false);
+          setIsStreaming(false);
+          setMessages((prev) => {
+            const next = [...prev];
+            const idx = next.length - 1;
+            if (idx >= 0 && next[idx].role === "assistant") {
+              next[idx] = {
+                ...next[idx],
+                content: normalizeErrorMessage(payload?.detail, "응답 생성 중 오류가 발생했습니다."),
+              };
+            }
+            return next;
+          });
+          return true;
+        }
+
+        return false;
+      };
+
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) {
+          buffer += decoder.decode();
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const events = buffer.split("\n\n");
@@ -316,24 +477,24 @@ const ChatSummary = () => {
             continue;
           }
 
-          if (payload.type === "token" && payload.text) {
-            setWaitingFirstToken(false);
-            appendAssistantToken(payload.text);
-          } else if (payload.type === "error") {
-            setWaitingFirstToken(false);
-            setMessages((prev) => {
-              const next = [...prev];
-              const idx = next.length - 1;
-              if (idx >= 0 && next[idx].role === "assistant") {
-                next[idx] = {
-                  ...next[idx],
-                  content: payload.detail || "응답 생성 중 오류가 발생했습니다.",
-                };
-              }
-              return next;
-            });
+          if (applySsePayload(payload)) {
             return;
           }
+        }
+      }
+
+      const trailingLines = buffer
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim());
+      if (trailingLines.length) {
+        try {
+          const trailingPayload = JSON.parse(trailingLines.join("\n"));
+          if (applySsePayload(trailingPayload)) {
+            return;
+          }
+        } catch {
+          // ignore trailing parse errors
         }
       }
 
@@ -347,6 +508,7 @@ const ChatSummary = () => {
       });
     } catch (error) {
       setWaitingFirstToken(false);
+      setIsStreaming(false);
       setMessages((prev) => {
         const next = [...prev];
         const idx = next.length - 1;
@@ -363,6 +525,7 @@ const ChatSummary = () => {
     } finally {
       setLoadingChat(false);
       setWaitingFirstToken(false);
+      setIsStreaming(false);
     }
   };
 
@@ -380,17 +543,30 @@ const ChatSummary = () => {
         <label className="upload-box">
           <input
             type="file"
+            multiple
             accept=".pdf,.doc,.docx,.hwpx,.jpg,.jpeg,.png,.bmp,.webp,.tif,.tiff,.gif"
-            onChange={(e) => setFile(extractDropFile(e.target.files))}
+            onChange={(e) =>
+              setSelectedFiles(getValidatedFiles(extractDropFiles(e.target.files), extractedDocs.length))
+            }
           />
-          {!file && <span>파일 선택 또는 화면 어디든 드래그앤드롭</span>}
-          {file && (
-            <div className="selected-file-card">
-              <div className="selected-file-icon" aria-hidden="true">📄</div>
-              <div className="selected-file-meta">
-                <div className="selected-file-name">{file.name}</div>
-                <div className="selected-file-size">{formatFileSize(file.size)}</div>
-              </div>
+          {!selectedFiles.length && <span>파일 선택 또는 화면 어디든 드래그앤드롭 (최대 5개)</span>}
+          {selectedFiles.length > 0 && (
+            <>
+              {selectedFiles.map((file) => (
+                <div className="selected-file-card" key={`selected-${file.name}-${file.size}`}>
+                  <div className="selected-file-icon" aria-hidden="true">📄</div>
+                  <div className="selected-file-meta">
+                    <div className="selected-file-name">{file.name}</div>
+                    <div className="selected-file-size">{formatFileSize(file.size)}</div>
+                  </div>
+                </div>
+              ))}
+              <div className="selected-file-size">선택됨: {selectedFiles.length} / {MAX_EXTRACT_DOCS}</div>
+            </>
+          )}
+          {extractedDocs.length > 0 && (
+            <div className="selected-file-size">
+              추출 완료 문서: {extractedDocs.length} / {MAX_EXTRACT_DOCS}
             </div>
           )}
         </label>
@@ -450,13 +626,29 @@ const ChatSummary = () => {
             <div key={`${msg.role}-${idx}`} className={`bubble ${msg.role}`}>
               {msg.content}
               {msg.meta?.type === "file" && (
-                <div className="message-file-card">
-                  <div className="message-file-icon" aria-hidden="true">📄</div>
-                  <div className="message-file-meta">
-                    <div className="message-file-name">{msg.meta.fileName}</div>
-                    <div className="message-file-size">{msg.meta.fileSize}</div>
+                <>
+                  <div className="message-file-card">
+                    <div className="message-file-icon" aria-hidden="true">📄</div>
+                    <div className="message-file-meta">
+                      <div className="message-file-name">{msg.meta.fileName}</div>
+                      <div className="message-file-size">{msg.meta.fileSize}</div>
+                    </div>
                   </div>
-                </div>
+                  {msg.meta.extractedText && (
+                    <div className="message-file-detail">
+                      <button
+                        type="button"
+                        className="message-file-toggle-btn"
+                        onClick={() => toggleFileMessage(`msg-${idx}`)}
+                      >
+                        {expandedFileMessages[`msg-${idx}`] ? "원문 접기 ▲" : "원문 펼치기 ▼"}
+                      </button>
+                      {expandedFileMessages[`msg-${idx}`] && (
+                        <div className="message-file-text">{msg.meta.extractedText}</div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))}
@@ -464,6 +656,11 @@ const ChatSummary = () => {
           {loadingChat && waitingFirstToken && (
             <div className="thinking-indicator" role="status" aria-live="polite">
               <span className="thinking-dot" aria-hidden="true" />생각 중입니다
+            </div>
+          )}
+          {loadingChat && !waitingFirstToken && isStreaming && (
+            <div className="thinking-indicator" role="status" aria-live="polite">
+              <span className="thinking-dot" aria-hidden="true" />답변 중입니다
             </div>
           )}
         </div>

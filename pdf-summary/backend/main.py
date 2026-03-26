@@ -16,7 +16,7 @@ from routers.auth.router import router as auth_router
 from routers.admin.router import router as admin_router
 from routers.document.router import router as document_router
 # [추가] 상단 import
-from routers.websocket.websocket import sio, websocket_app
+from routers.websocket.websocket import sio
 
 # FastAPI 앱 초기화
 app = FastAPI(title="PDF Summary System API", version="1.0.0")
@@ -82,10 +82,10 @@ app.add_middleware(
 )
 
 # --- 라우터 등록 ---
+
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(document_router)
-app.mount("/socket.io", websocket_app)
 
 # --- 기본 루트 경로 ---
 @app.get("/")

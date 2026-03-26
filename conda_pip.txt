@@ -87,12 +87,6 @@ six @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_six_17
 SQLAlchemy==2.0.46
 stack_data @ file:///home/conda/feedstock_root/build_artifacts/stack_data_1733569443808/work
 starlette==0.49.3
-tensorboard==2.13.0
-tensorboard-data-server==0.7.2
-tensorflow==2.13.0
-tensorflow-estimator==2.13.0
-tensorflow-intel==2.13.0
-tensorflow-io-gcs-filesystem==0.31.0
 termcolor==3.1.0
 tf-slim==1.1.0
 tornado @ file:///D:/bld/tornado_1754732005081/work

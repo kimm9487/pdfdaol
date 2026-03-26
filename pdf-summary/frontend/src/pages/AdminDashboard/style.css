@@ -19,6 +19,45 @@
 .badge-danger { background: #f8d7da; color: #721c24; }
 .badge-admin { background: #ff9500; color: white; }
 .badge-user { background: #ccc; color: #333; }
+.chroma-table-toolbar {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.chroma-search-input,
+.chroma-sort-select {
+    height: 36px;
+    border: 1px solid #d7dee4;
+    border-radius: 6px;
+    padding: 0 10px;
+    font-size: 0.9rem;
+    background: #fff;
+}
+.chroma-search-input { min-width: 220px; }
+.chroma-sort-select { min-width: 150px; }
+.chroma-refresh-meta {
+    color: #6b7785;
+    font-size: 0.85rem;
+    margin-left: auto;
+}
+.chroma-state-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 72px;
+}
+.chroma-state-normal { background: #d4edda; color: #155724; }
+.chroma-state-empty { background: #fff3cd; color: #856404; }
+.chroma-state-error { background: #f8d7da; color: #721c24; }
+.chroma-note-cell {
+    color: #5d6c7b;
+    font-size: 0.85rem;
+}
+
+/* 요약안함(경고) 뱃지 스타일 */
+.badge-warning { background: #fff3cd; color: #856404; }
 
 /* ===== [추가] 로딩 및 오류 메시지 스타일 ===== */
 .loading { text-align: center; padding: 2rem; color: #7f8c8d; font-size: 0.95rem; }

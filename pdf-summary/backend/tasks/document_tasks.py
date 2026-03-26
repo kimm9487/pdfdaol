@@ -14,8 +14,8 @@ from database import (
     can_user_access_document,
     log_admin_activity,
 )
-from services.ai_service import summarize_text, categorize_document
-from services.pdf_service import extract_text_from_pdf, _build_upload_file_from_bytes
+from services.ai_service_extract import summarize_text, categorize_document
+from services.pdf_service import extract_text_from_pdf
 
 
 class DBTask(Task):
@@ -48,9 +48,11 @@ def extract_document_task(
     db = self.db
     try:
         file_bytes = base64.b64decode(file_b64)
-        upload = _build_upload_file_from_bytes(file_bytes, filename)
 
-        extraction_result = asyncio.run(extract_text_from_pdf(upload, ocr_model=ocr_model))
+        # ✅ bytes와 filename을 직접 전달
+        extraction_result = asyncio.run(
+            extract_text_from_pdf(file_bytes=file_bytes, filename=filename, ocr_model=ocr_model)
+        )
         extracted_text = extraction_result["text"]
         extraction_time = extraction_result["processing_time"]
 
@@ -84,7 +86,9 @@ def extract_document_task(
 
         try:
             category_start = time.time()
-            category = asyncio.run(categorize_document(title=filename))
+            category = asyncio.run(
+                categorize_document(title=filename, extracted_text=extracted_text)
+            )
             category_time = time.time() - category_start
 
             doc.category = category
