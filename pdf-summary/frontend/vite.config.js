@@ -6,10 +6,9 @@ import http from "node:http";
 export default defineConfig(({ mode }) => {
   const isDev = mode === "development" || mode === undefined;
   
-  // 환경변수에서 백엔드 주소 읽기 (없으면 기본값)
-  // 로컬: npm run dev → fallback: http://localhost:8000
-  // 도커: VITE_BACKEND_TARGET 또는 BACKEND_HOST 환경변수
-  const backendTarget = process.env.VITE_BACKEND_TARGET || process.env.BACKEND_HOST || "http://localhost:8000";
+  // ✅ 수정된 부분 1: 기본 폴백(fallback) 주소를 nip.io로 변경
+  // 로컬: npm run dev → fallback: http://127.0.0.1.nip.io:8000
+  const backendTarget = process.env.VITE_BACKEND_TARGET || process.env.BACKEND_HOST || "http://127.0.0.1.nip.io:8000";
 
   console.log(`[Vite] Backend Target: ${backendTarget}`);
 
@@ -20,6 +19,9 @@ export default defineConfig(({ mode }) => {
       ? {
           host: "0.0.0.0",
           port: 5173,
+          
+          // ✅ 수정된 부분 2: nip.io 도메인 접속을 차단하지 않도록 허용
+          allowedHosts: true, // 또는 [".nip.io"] 로 특정할 수도 있습니다.
 
           proxy: {
             // ✅ Socket.IO (WebSocket 포함)
@@ -56,4 +58,4 @@ export default defineConfig(({ mode }) => {
         }
       : undefined,
   };
-}); 
+});

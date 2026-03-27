@@ -1,4 +1,3 @@
-
 import os
 import httpx
 import json
@@ -25,6 +24,9 @@ NAVER_REDIRECT_URI = os.getenv("NAVER_REDIRECT_URI")
 KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID") # 카카오는 REST API 키 사용
 KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
 
+# 💡 [추가] 프론트엔드 URL을 환경변수에서 가져옵니다. (기본값: localhost)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
 # 2. 공통 로그인 처리 함수 (중복 코드 제거)
 def process_social_login(db: Session, request: Request, email: str, full_name: str, provider: str):
     if not email:
@@ -34,7 +36,8 @@ def process_social_login(db: Session, request: Request, email: str, full_name: s
     
     # 사용자가 없으면 새로 생성 창으로 리디렉트
     if not user:
-        frontend_signup_url = f"http://localhost:5173/register?email={email}&name={full_name}&provider={provider}"
+        # 🚨 [수정됨] localhost 대신 FRONTEND_URL 사용
+        frontend_signup_url = f"{FRONTEND_URL}/register?email={email}&name={full_name}&provider={provider}"
         return RedirectResponse(url=frontend_signup_url)
     
     # 기존 활성 세션 종료
@@ -60,8 +63,9 @@ def process_social_login(db: Session, request: Request, email: str, full_name: s
     
     log_admin_activity(db, user.id, "USER_LOGIN", "USER", user.id, json.dumps({"provider": provider, "ip_address": ip_address}))
 
+    # 🚨 [수정됨] localhost 대신 FRONTEND_URL 사용
     frontend_redirect_url = (
-        f"http://localhost:5173/login?"
+        f"{FRONTEND_URL}/login?"
         f"session_token={session_token}&"
         f"user_name={user.full_name}&"
         f"user_id={user.username}&"

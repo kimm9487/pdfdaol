@@ -61,6 +61,9 @@ if not cors_origins:
     cors_origins = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        # 💡 [추가] nip.io 접속을 명시적으로 허용합니다.
+        "http://127.0.0.1.nip.io:5173",       # 로컬 테스트용
+        "http://192.168.0.151.nip.io:5173",   # 도커 서버 배포용
         "http://localhost:5174",
         "http://127.0.0.1:5174",
         "http://localhost:3000",
