@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS pdf_documents (
   successful_pages INT COMMENT '성공적으로 추출된 페이지 수',
   
   -- 문서 분류 필드
-  category ENUM('법령·규정','행정·공문','보고·계획','재정·계약','기타') DEFAULT '기타' NOT NULL COMMENT '문서 카테고리(공문서)',
+  category ENUM('강의','법률안','보고서','기타') DEFAULT '기타' NOT NULL COMMENT '문서 카테고리',
   
   -- 중요 문서 및 보안 관련 필드
   is_important BOOLEAN DEFAULT FALSE COMMENT '중요문서 여부',
@@ -121,10 +121,8 @@ CREATE TABLE IF NOT EXISTS pdf_documents (
 ALTER TABLE users ADD COLUMN IF NOT EXISTS provider VARCHAR(50) NOT NULL DEFAULT 'local';
 
 ALTER TABLE pdf_documents ADD COLUMN IF NOT EXISTS ocr_model VARCHAR(50) COMMENT '텍스트 추출에 사용된 OCR 모델' AFTER summary;
-ALTER TABLE pdf_documents ADD COLUMN IF NOT EXISTS category ENUM('법령·규정','행정·공문','보고·계획','재정·계약','기타') DEFAULT '기타' NOT NULL COMMENT '문서 카테고리(공문서)' AFTER successful_pages;
+ALTER TABLE pdf_documents ADD COLUMN IF NOT EXISTS category ENUM('강의','법률안','보고서','기타') DEFAULT '기타' NOT NULL COMMENT '문서 카테고리' AFTER successful_pages;
 ALTER TABLE pdf_documents ADD INDEX IF NOT EXISTS ix_pdf_documents_category (category);
-
--- 기존 DB를 공문서 카테고리로 바꿀 때: database_migration_category_official.sql 실행
 
 -- 보안 관련 필드 추가
 ALTER TABLE pdf_documents ADD COLUMN IF NOT EXISTS is_important BOOLEAN DEFAULT FALSE COMMENT '중요문서 여부' AFTER category;

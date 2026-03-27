@@ -122,9 +122,6 @@ async def get_database_status(db: Session = Depends(get_db)):
         )
 
 
-
-import requests
-
 @system_router.get("/chroma-status")
 async def get_chroma_status(
     admin_user_id: Optional[int] = None,
@@ -132,80 +129,37 @@ async def get_chroma_status(
 ):
     """Chroma VectorDB 상태와 컬렉션 통계를 반환합니다."""
     _assert_admin(db, admin_user_id)
-    base_url = os.getenv("CHROMA_BASE_URL", "http://chroma:8000")
+
     try:
-        import json
-
-        # 1. Heartbeat 체크
-        heartbeat_resp = requests.get(f"{base_url}/api/v1/heartbeat", timeout=2)
-        heartbeat_resp.raise_for_status()
-        heartbeat = heartbeat_resp.json() if heartbeat_resp.content else {}
-        heartbeat_str = json.dumps(heartbeat, ensure_ascii=False)
-
-        # 2. 컬렉션 목록 조회
-        collections_resp = requests.get(f"{base_url}/api/v1/collections", timeout=2)
-        collections_resp.raise_for_status()
-        collections_json = collections_resp.json()
-
-        if isinstance(collections_json, list):
-            collections = collections_json
-        elif isinstance(collections_json, dict) and "collections" in collections_json:
-            collections = collections_json["collections"]
-        else:
-            collections = []
+        client, base_url = _build_chroma_client()
+        heartbeat = client.heartbeat()
+        collections = client.list_collections()
 
         items = []
         for col in collections:
-            if isinstance(col, dict):
-                name = col.get("name", str(col))
-                col_id = col.get("id") or name  # ChromaDB v0.4+는 UUID로 조회
-                metadata = col.get("metadata", {})
-            else:
-                name = str(col)
-                col_id = name
-                metadata = {}
-
-            count = None
+            count = 0
             try:
-                # UUID로 먼저 시도, 실패 시 name으로 fallback
-                for identifier in [col_id, name]:
-                    count_resp = requests.get(
-                        f"{base_url}/api/v1/collections/{identifier}/count", timeout=2
-                    )
-                    if count_resp.status_code == 200:
-                        count_json = count_resp.json()
-                        # ChromaDB는 bare integer 또는 dict로 반환
-                        if isinstance(count_json, int):
-                            count = count_json
-                        elif isinstance(count_json, dict):
-                            count = (
-                                count_json.get("count")
-                                or count_json.get("document_count")
-                                or count_json.get("size")
-                            )
-                        if count is not None:
-                            break  # 성공하면 루프 종료
+                count = col.count()
+            except Exception:
+                count = -1
 
-                if count is None:
-                    count = "정보 없음"
-
-            except Exception as e:
-                count = f"조회 실패: {str(e)}"
-
-            items.append({
-                "name": name,
-                "metadata": metadata,
-                "count": count,
-            })
+            items.append(
+                {
+                    "name": col.name,
+                    "count": count,
+                }
+            )
 
         return {
             "connected": True,
             "base_url": base_url,
-            "heartbeat": heartbeat_str,
+            "heartbeat": heartbeat,
             "collection_count": len(items),
             "collections": sorted(items, key=lambda x: x["name"]),
             "timestamp": datetime.datetime.now().isoformat(),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chroma 상태 조회 실패: {str(e)}")
 

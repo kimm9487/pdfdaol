@@ -2,14 +2,14 @@ import io
 import time
 
 import PyPDF2
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 
-from .markdown_layout import to_layout_markdown
 from .types import OcrResult
 
 
-async def extract_text(contents: bytes, filename: str) -> OcrResult:
+async def extract_text(file: UploadFile) -> OcrResult:
     start_time = time.time()
+    contents = await file.read()
 
     if len(contents) == 0:
         raise HTTPException(status_code=422, detail="파일이 비어있습니다.")
@@ -30,7 +30,7 @@ async def extract_text(contents: bytes, filename: str) -> OcrResult:
         try:
             page_text = page.extract_text()
             if page_text and page_text.strip():
-                extracted_text += f"\n[페이지 {page_num + 1}]\n{to_layout_markdown(page_text)}"
+                extracted_text += f"\n[페이지 {page_num + 1}]\n{page_text}"
                 successful_pages += 1
         except Exception:
             continue

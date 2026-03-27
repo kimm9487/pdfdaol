@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Form, Depends, Response
 from urllib.parse import quote
-from services.ai_service_extract import get_available_models
+from services.ai_service import get_available_models
 from services.pdf_service import get_available_ocr_models
 
 utility_router = APIRouter(tags=["Document Utilities"])

@@ -231,24 +231,12 @@ export default function WebSocketChat() {
       return;
     }
 
-    // ✅ 런타임 동적 WebSocket URL 결정 (yml 수정 불필요)
-    // 1. localStorage에 저장된 백엔드 주소 우선
-    // 2. 없으면 현재 페이지 origin 사용
-    const getSocketUrl = () => {
-      const stored = localStorage.getItem('backendSocketUrl');
-      if (stored) {
-        return stored;
-      }
-      return window.location.origin;
-    };
-    
-    // ✅ 프로토콜 선택 (https → wss, http → ws)
-    let url = getSocketUrl();
+    // ✅ 로컬 개발 환경에서 backend(8000)로 WebSocket 연결 강제
+    // localStorage에 backendSocketUrl이 있으면 우선 사용, 없으면 http://localhost:8000 사용
+    let socketUrl = localStorage.getItem('backendSocketUrl') || 'http://localhost:8000';
     if (window.location.protocol === 'https:') {
-      url = url.replace(/^http:/, 'https:');
+      socketUrl = socketUrl.replace(/^http:/, 'https:');
     }
-    
-    const socketUrl = url;
 
     // 강퇴 경고 문구 복원 → F5/재접속 시 즉시 동일 문구 표시
     const kickErrKey = getKickErrorCacheKey();
@@ -967,7 +955,7 @@ export default function WebSocketChat() {
       setDmReadStateByUserAndPersist,
     ],
   );
-  
+
   if (!hasAuthSession) return null;
 
   return (

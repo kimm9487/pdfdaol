@@ -1,41 +1,17 @@
 import time
 import os
-import types
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 import numpy as np
 
 from .image_preprocess import preprocess_for_ocr
-from .markdown_layout import to_layout_markdown
 from .pdf_page_renderer import render_input_to_images
 from .types import OcrResult
 
 
-def _ensure_paddle_fluid_compat() -> None:
-    """Provide minimal paddle.fluid.core compat for older PaddleOCR paths."""
-    try:
-        import paddle
-    except Exception:
-        return
-
-    if hasattr(paddle, "fluid"):
-        return
-
-    core = None
-    try:
-        from paddle.base import core as paddle_base_core
-        core = paddle_base_core
-    except Exception:
-        pass
-
-    if core is not None:
-        paddle.fluid = types.SimpleNamespace(core=core)
-
-
 def _build_reader(lang: str):
+    # 네트워크 체크로 인한 초기화 지연/충돌을 방지합니다.
     os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
-
-    _ensure_paddle_fluid_compat()
 
     try:
         from paddleocr import PaddleOCR
@@ -43,9 +19,11 @@ def _build_reader(lang: str):
         raise HTTPException(status_code=503, detail=f"paddleocr 미설치: {exc}")
 
     try:
+        # PaddleOCR v3 uses `device` instead of deprecated `use_gpu`.
         use_gpu = os.getenv("OCR_USE_GPU", "true").lower() in {"1", "true", "yes", "on"}
         preferred_device = os.getenv("PADDLE_DEVICE", "gpu:0" if use_gpu else "cpu")
 
+        # PaddleOCR v3: device 인자 사용
         if use_gpu:
             try:
                 return PaddleOCR(use_angle_cls=True, lang=lang, device=preferred_device)
@@ -55,6 +33,7 @@ def _build_reader(lang: str):
         try:
             return PaddleOCR(use_angle_cls=True, lang=lang, device="cpu")
         except TypeError:
+            # PaddleOCR v2: use_gpu 인자 사용
             if use_gpu:
                 try:
                     return PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=True)
@@ -93,11 +72,14 @@ def _extract_lines_from_result(result) -> list:
     return lines
 
 
-async def extract_text(contents: bytes, filename: str, lang: str = "korean") -> OcrResult:
+async def extract_text(file: UploadFile, lang: str = "korean") -> OcrResult:
     start_time = time.time()
+    contents = await file.read()
+
     if len(contents) == 0:
         raise HTTPException(status_code=422, detail="파일이 비어있습니다.")
 
+    filename = file.filename or "uploaded_file"
     extension = filename[filename.rfind("."):].lower() if "." in filename else ""
     images = render_input_to_images(contents, extension)
 
@@ -122,7 +104,7 @@ async def extract_text(contents: bytes, filename: str, lang: str = "korean") -> 
                 page_text = "\n".join(retry_lines).strip()
 
             if page_text:
-                parts.append(f"[페이지 {idx}]\n{to_layout_markdown(page_text)}")
+                parts.append(f"[페이지 {idx}]\n{page_text}")
                 successful_pages += 1
         except Exception as exc:
             if first_error is None:

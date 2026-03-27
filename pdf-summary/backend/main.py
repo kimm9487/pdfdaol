@@ -16,12 +16,10 @@ from routers.auth.router import router as auth_router
 from routers.admin.router import router as admin_router
 from routers.document.router import router as document_router
 # [추가] 상단 import
-from routers.websocket.websocket import sio
+from routers.websocket.websocket import sio, websocket_app
 
 # FastAPI 앱 초기화
 app = FastAPI(title="PDF Summary System API", version="1.0.0")
-# 도커/로컬 호환을 위한 ASGI 엔트리포인트 별칭
-asgi_app = app
 
 # 서버 시작 시 테이블 자동 생성
 try:
@@ -84,10 +82,10 @@ app.add_middleware(
 )
 
 # --- 라우터 등록 ---
-
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(document_router)
+app.mount("/socket.io", websocket_app)
 
 # --- 기본 루트 경로 ---
 @app.get("/")
