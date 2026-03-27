@@ -20,6 +20,8 @@ from routers.websocket.websocket import sio
 
 # FastAPI 앱 초기화
 app = FastAPI(title="PDF Summary System API", version="1.0.0")
+# 도커/로컬 호환을 위한 ASGI 엔트리포인트 별칭
+asgi_app = app
 
 # 서버 시작 시 테이블 자동 생성
 try:
@@ -28,8 +30,6 @@ try:
 except Exception as e:
     print(f"⚠️ 데이터베이스 생성 중 에러 (테이블이 이미 존재할 수 있음): {e}")
 
-# --- 2. FastAPI 앱 설정 ---
-app = FastAPI(title="PDF 요약 시스템 API")
 
 
 # --- 전역 HTTPException 핸들러 (모든 4xx/5xx 자동 디스코드 알림) ---

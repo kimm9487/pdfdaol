@@ -82,7 +82,7 @@ services:
       PADDLE_DEVICE: gpu:0
       USE_REDIS: "true"
       REDIS_URL: "redis://redis:6379/0"
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:asgi_app --host 0.0.0.0 --port 8000 --reload
     deploy:
       resources:
         reservations:
@@ -234,9 +234,11 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+      - websocket
     environment:
       VITE_API_PORT: "8000"
       VITE_BACKEND_TARGET: http://backend:8000
+      VITE_SOCKET_TARGET: http://websocket:8001
       NODE_ENV: development
     ports:
       - "5173:5173"

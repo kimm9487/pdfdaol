@@ -97,18 +97,18 @@ export const useLogin = (setIsLoggedIn) => {
 
   // 🚀 1-2. 구글 소셜 로그인 처리 함수
   const handleGoogleLogin = () => {
-    window.location.href = buildApiUrl("/auth/google/login");
+    window.location.href = "http://localhost:8000/auth/social/google/login";
   };
 
   // 🟢 [추가됨] 1-3. 네이버 소셜 로그인 처리 함수
   const handleNaverLogin = () => {
     // 백엔드 네이버 로그인 API 경로에 맞춰 추후 수정
-    // window.location.href = "http://localhost:8000/api/auth/naver/login";
-    toast.info("네이버 로그인 기능 준비 중입니다.");
+    window.location.href = "http://localhost:8000/auth/social/naver/login";
+    //toast.info("네이버 로그인 기능 준비 중입니다.");
   };
   const handleKakaoLogin = () => {
-    // window.location.href = "http://localhost:8000/api/auth/kakao/login";
-    toast.info("카카오 로그인 기능 준비 중입니다.");
+    window.location.href = "http://localhost:8000/auth/social/kakao/login";
+    //toast.info("카카오 로그인 기능 준비 중입니다.");
   };
   // 📧 2. 인증번호 발송 (아이디/비번 찾기 공통)
   const handleSendCode = async () => {

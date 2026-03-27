@@ -5,11 +5,10 @@ import DateDivider from "./WebSocketDateSeparator";
 
 export default function MessageList({ messages, bottomRef }) {
   const groupedItems = useMemo(() => {
-    console.log("📦 MessageList messages:", messages);
     const items = [];
     let prevDateKey = null;
 
-    messages.forEach((msg, index) => {
+    (Array.isArray(messages) ? messages : []).forEach((msg, index) => {
       const msgDate =
         msg.timestamp && !isNaN(new Date(msg.timestamp))
           ? new Date(msg.timestamp)
@@ -40,7 +39,7 @@ export default function MessageList({ messages, bottomRef }) {
   }, [messages]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-6 space-y-0.5">
+    <div className="chat-messages">
       {groupedItems.map((item, idx) => {
         if (item.type === "divider") {
           return <DateDivider key={`divider-${idx}`} date={item.date} />;

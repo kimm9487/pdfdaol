@@ -9,10 +9,14 @@ export default function DateDivider({ date }) {
   else if (isYesterday(date)) label = '어제';
 
   return (
-    <div className="flex justify-center my-6">
-      <span className="px-5 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm rounded-full font-medium">
+    <div className="chat-date-divider">
+      <span className="chat-date-divider__line" />
+      <span className="chat-date-divider__label">
         {label}
       </span>
+      <span className="chat-date-divider__line" />
     </div>
   );
 }
+
+// commit touch: 260327_웹소켓 도커 최종

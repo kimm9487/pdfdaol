@@ -25,8 +25,8 @@ export const useRegister = () => {
   const [isCodeSent, setIsCodeSent] = useState(false);
 
   const [isEmailVerified, setIsEmailVerified] = useState(
-    initialProvider === "google",
-  ); // 구글 소셜 로그인은 이메일이 이미 검증된 것으로 간주
+    initialProvider !== "local",
+  ); // 소셜 로그인은 이메일이 이미 검증된 것으로 간주
 
   const [timeLeft, setTimeLeft] = useState(300);
   const [error, setError] = useState("");

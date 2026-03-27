@@ -76,7 +76,8 @@ def get_user_profile(user_db_id: int, db: Session = Depends(get_db)):
         "username": user.username,
         "full_name": user.full_name,
         "email": user.email,
-        "role": user.role
+        "role": user.role,
+        "provider": user.provider
     }
 
 
