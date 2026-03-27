@@ -32,15 +32,11 @@ export const usePdfSummary = () => {
   const [isDragActive, setIsDragActive] = useState(false);
   const [translatingOriginal, setTranslatingOriginal] = useState(false);
   const [translatingSummary, setTranslatingSummary] = useState(false);
-<<<<<<< HEAD
   const [streamingSummary, setStreamingSummary] = useState(""); // [추가] 35줄: 실시간 스트리밍 요약 텍스트 상태
   const [streamingTranslationOriginal, setStreamingTranslationOriginal] =
     useState(""); // [추가] 원문 번역 스트리밍 상태
   const [streamingTranslationSummary, setStreamingTranslationSummary] =
     useState(""); // [추가] 요약 번역 스트리밍 상태
-=======
-  const [streamingSummary, setStreamingSummary] = useState("");
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
   const [extractionProgress, setExtractionProgress] = useState({
     mode: null,
     current: 0,
@@ -83,7 +79,6 @@ export const usePdfSummary = () => {
   const getAcceptByModel = (ocrModel) =>
     getAllowedExtensions(ocrModel).join(",");
 
-<<<<<<< HEAD
   const normalizeErrorMessage = (detail, fallback = "오류가 발생했습니다.") => {
     if (!detail) return fallback;
     if (typeof detail === "string") return detail;
@@ -105,8 +100,6 @@ export const usePdfSummary = () => {
     return fallback;
   };
 
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
   useEffect(() => {
     const userId = localStorage.getItem("userId");
     setIsAdmin(userId === "admin");
@@ -193,7 +186,6 @@ export const usePdfSummary = () => {
     e.stopPropagation();
     setIsDragActive(true);
   };
-<<<<<<< HEAD
 
   const handleDragLeave = (e) => {
     e.preventDefault();
@@ -396,61 +388,6 @@ export const usePdfSummary = () => {
             data.detail || data.message || data,
             errorMsg,
           );
-=======
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-    const droppedFiles = e.dataTransfer.files;
-    if (droppedFiles.length > 0) processFile(droppedFiles[0]);
-  };
-
-  const handleExtract = async () => {
-    if (!file) return;
-    setLoading(true);
-    setStatus({ type: "", msg: "" });
-    setResult(null);
-    setStreamingSummary("");
-    setExtractionProgress({ mode: null, current: 0, total: 0 });
-    setTranslations({ original: null, summary: null });
-    try {
-      const userDbId = localStorage.getItem("userDbId");
-      if (!userDbId) {
-        setStatus({
-          type: "error",
-          msg: "사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.",
-        });
-        return;
-      }
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("user_id", String(parseInt(userDbId) || 0));
-      formData.append("ocr_model", selectedOcrModel);
-      formData.append("is_important", isImportant ? "true" : "false");
-      formData.append(
-        "password",
-        isImportant ? String(documentPassword || "") : "",
-      );
-      formData.append("is_public", isPublic ? "true" : "false");
-      const res = await fetch(`${API_BASE}/documents/extract`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        let errorMsg = "추출 중 오류가 발생했습니다.";
-        try {
-          const data = await res.json();
-          errorMsg =
-            data.detail || data.message || JSON.stringify(data) || errorMsg;
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
         } catch (_) {}
         setStatus({ type: "error", msg: errorMsg });
         return;
@@ -464,7 +401,6 @@ export const usePdfSummary = () => {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-<<<<<<< HEAD
       let accumulatedText = "";
       let modelUsed = selectedModel;
 
@@ -559,113 +495,19 @@ export const usePdfSummary = () => {
     if (isOriginal) setTranslatingOriginal(true);
     else setTranslatingSummary(true);
     setStreamingTranslation("");
-=======
-      let finalResult = null;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() || "";
-
-        for (const part of parts) {
-          if (!part.startsWith("data: ")) continue;
-
-          let event;
-          try {
-            event = JSON.parse(part.slice(6));
-          } catch (_) {
-            continue;
-          }
-
-          if (event.type === "start") {
-            const mode = event.ocr_mode
-              ? event.total_pages > 0
-                ? "ocr_page"
-                : "ocr"
-              : "page";
-            setExtractionProgress({
-              mode,
-              current: 0,
-              total: event.total_pages || 0,
-            });
-          } else if (event.type === "page") {
-            setExtractionProgress({
-              mode: "page",
-              current: event.page || 0,
-              total: event.total || 0,
-            });
-          } else if (event.type === "ocr_progress") {
-            setExtractionProgress({
-              mode: "ocr_page",
-              current: event.page || 0,
-              total: event.total || 0,
-            });
-          } else if (event.type === "chunk_start") {
-            setExtractionProgress({
-              mode: "chunk",
-              current: 0,
-              total: event.total_chunks || 0,
-            });
-          } else if (event.type === "chunk") {
-            setExtractionProgress({
-              mode: "chunk",
-              current: event.index || 0,
-              total: event.total || 0,
-            });
-          } else if (event.type === "done") {
-            finalResult = event;
-            setExtractionProgress({ mode: null, current: 0, total: 0 });
-          } else if (event.type === "error") {
-            setStatus({
-              type: "error",
-              msg: event.detail || "추출 중 오류가 발생했습니다.",
-            });
-            setExtractionProgress({ mode: null, current: 0, total: 0 });
-          }
-        }
-      }
-
-      if (finalResult) {
-        setResult(finalResult);
-        setStatus({ type: "success", msg: "텍스트 추출이 완료되었습니다." });
-      }
-    } catch (err) {
-      console.error("Fetch Error:", err);
-      setStatus({ type: "error", msg: "서버 연결 실패: " + err.message });
-      setExtractionProgress({ mode: null, current: 0, total: 0 });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSummarizeExtracted = async () => {
-    if (!result || !result.id) return;
-    setSummarizing(true);
-    setStreamingSummary("");
-    setStatus({ type: "", msg: "" });
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     try {
       const userDbId = localStorage.getItem("userDbId");
       const formData = new FormData();
       formData.append("document_id", result.id);
       formData.append("user_id", parseInt(userDbId));
-<<<<<<< HEAD
       formData.append("text_type", textType);
       formData.append("model", selectedModel);
       const res = await fetch(`${API_BASE}/documents/translate`, {
-=======
-      formData.append("model", selectedModel);
-      const res = await fetch(`${API_BASE}/documents/summarize-document`, {
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
         method: "POST",
         body: formData,
       });
 
       if (!res.ok) {
-<<<<<<< HEAD
         let errorMsg = "번역 중 오류가 발생했습니다.";
         try {
           const data = await res.json();
@@ -673,13 +515,6 @@ export const usePdfSummary = () => {
             data.detail || data.message || data,
             errorMsg,
           );
-=======
-        let errorMsg = "요약 중 오류가 발생했습니다.";
-        try {
-          const data = await res.json();
-          errorMsg =
-            data.detail || data.message || JSON.stringify(data) || errorMsg;
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
         } catch (_) {}
         setStatus({ type: "error", msg: errorMsg });
         return;
@@ -694,7 +529,6 @@ export const usePdfSummary = () => {
       const decoder = new TextDecoder();
       let buffer = "";
       let accumulatedText = "";
-<<<<<<< HEAD
 
       // [속도 최적화 2026-03-19] 30ms 배치 업데이트
       let lastFlushed = "";
@@ -766,112 +600,6 @@ export const usePdfSummary = () => {
     element.click();
   };
 
-=======
-      let modelUsed = selectedModel;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() || "";
-
-        for (const part of parts) {
-          if (!part.startsWith("data: ")) continue;
-
-          let event;
-          try {
-            event = JSON.parse(part.slice(6));
-          } catch (_) {
-            continue;
-          }
-
-          if (event.type === "token") {
-            accumulatedText += event.text || "";
-            setStreamingSummary(accumulatedText);
-          } else if (event.type === "done") {
-            modelUsed = event.model_used || selectedModel;
-          } else if (event.type === "error") {
-            setStatus({
-              type: "error",
-              msg: event.detail || "요약 중 오류가 발생했습니다.",
-            });
-            setStreamingSummary("");
-          }
-        }
-      }
-
-      if (accumulatedText) {
-        setResult((prev) => ({
-          ...prev,
-          summary: accumulatedText,
-          model_used: modelUsed,
-        }));
-      }
-      setStreamingSummary("");
-      setStatus({ type: "success", msg: "LLM 요약이 완료되었습니다." });
-    } catch (err) {
-      console.error("요약 오류:", err);
-      setStatus({
-        type: "error",
-        msg: "요약 중 오류가 발생했습니다. 에러: " + err.message,
-      });
-      setStreamingSummary("");
-    } finally {
-      setSummarizing(false);
-    }
-  };
-
-  const handleTranslate = async (textType) => {
-    if (!result || !result.id) return;
-    const isOriginal = textType === "original";
-    if (isOriginal) setTranslatingOriginal(true);
-    else setTranslatingSummary(true);
-    try {
-      const userDbId = localStorage.getItem("userDbId");
-      const formData = new FormData();
-      formData.append("document_id", result.id);
-      formData.append("user_id", parseInt(userDbId));
-      formData.append("text_type", textType);
-      formData.append("model", selectedModel);
-      const res = await fetch(`${API_BASE}/documents/translate`, {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "번역 중 오류가 발생했습니다.");
-      }
-      setTranslations((prev) => ({
-        ...prev,
-        [textType]: data.translated_text,
-      }));
-      setStatus({
-        type: "success",
-        msg: `${textType === "original" ? "원문" : "요약"}이 영문으로 번역되었습니다.`,
-      });
-      setTimeout(() => setStatus({ type: "", msg: "" }), 3000);
-    } catch (err) {
-      console.error("번역 오류:", err);
-      setStatus({ type: "error", msg: err.message });
-    } finally {
-      if (isOriginal) setTranslatingOriginal(false);
-      else setTranslatingSummary(false);
-    }
-  };
-
-  const handleDownload = () => {
-    if (!result || !result.summary) return;
-    const element = document.createElement("a");
-    const fileContent = new Blob([result.summary], { type: "text/plain" });
-    element.href = URL.createObjectURL(fileContent);
-    element.download = `${fileName.replace(/\.[^/.]+$/, "")}_요약.txt`;
-    document.body.appendChild(element);
-    element.click();
-  };
-
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
   return {
     file,
     fileName,
@@ -889,13 +617,9 @@ export const usePdfSummary = () => {
     isDragActive,
     translatingOriginal,
     translatingSummary,
-<<<<<<< HEAD
     streamingSummary, // [추가] 506줄: 스트리밍 요약 상태 반환
     streamingTranslationOriginal,
     streamingTranslationSummary,
-=======
-    streamingSummary,
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     extractionProgress,
     translations,
     isImportant,
@@ -914,8 +638,4 @@ export const usePdfSummary = () => {
     handleTranslate,
     handleDownload,
   };
-<<<<<<< HEAD
 };
-=======
-};
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477

@@ -82,11 +82,7 @@ export const useDocumentHistory = () => {
     try {
       const userDbId = localStorage.getItem("userDbId");
       const response = await fetch(
-<<<<<<< HEAD
         buildApiUrl(`/api/documents/documents/${docId}?user_id=${userDbId}`),
-=======
-        buildApiUrl(`/api/document/${docId}?user_id=${userDbId}`),
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
         { method: "GET" },
       );
       if (response.ok) {

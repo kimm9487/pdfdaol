@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { buildApiUrl } from "../../config/api";
-<<<<<<< HEAD
 import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
-=======
-import toast from "react-hot-toast";
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 
 const EditProfileModal = ({ show, onClose, userInfo, onProfileUpdate }) => {
   const [editEmail, setEditEmail] = useState(userInfo.email);

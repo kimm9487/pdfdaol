@@ -32,8 +32,4 @@ const SelectionControls = ({
   );
 };
 
-<<<<<<< HEAD
 export default SelectionControls;
-=======
-export default SelectionControls;
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477

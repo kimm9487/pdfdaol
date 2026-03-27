@@ -276,10 +276,7 @@
   background: #fafaf8;
 }
 
-<<<<<<< HEAD
 /* [추가] 200~224줄: 타이핑 커서 & 스트리밍 요약 박스 스타일 */
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 .summary-streaming {
   min-height: 80px;
 }
@@ -527,8 +524,4 @@
   100% {
     transform: translateX(350%);
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477

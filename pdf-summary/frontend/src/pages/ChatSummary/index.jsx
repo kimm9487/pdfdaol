@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { API_BASE } from "../../config/api";
@@ -123,17 +122,6 @@ const preferredChatModels = (models) => {
 const ChatSummary = () => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [models, setModels] = useState([CHAT_DEFAULT_MODEL]);
-=======
-import React, { useEffect, useMemo, useState } from "react";
-import { API_BASE } from "../../config/api";
-import "./style.css";
-
-const CHAT_DEFAULT_MODEL = "qwen2.5:3b-instruct";
-
-const ChatSummary = () => {
-  const [file, setFile] = useState(null);
-  const [models, setModels] = useState([CHAT_DEFAULT_MODEL, "gemma3:latest"]);
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
   const [selectedModel, setSelectedModel] = useState(CHAT_DEFAULT_MODEL);
   const [ocrModels, setOcrModels] = useState([{ id: "pypdf2", label: "기본 텍스트 추출" }]);
   const [selectedOcrModel, setSelectedOcrModel] = useState("pypdf2");
@@ -146,24 +134,17 @@ const ChatSummary = () => {
     },
   ]);
 
-<<<<<<< HEAD
   const [extractedDocs, setExtractedDocs] = useState([]);
-=======
-  const [extractedText, setExtractedText] = useState("");
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
   const [input, setInput] = useState("");
   const [loadingExtract, setLoadingExtract] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
   const [useRag, setUseRag] = useState(true);
   const [useLora, setUseLora] = useState(false);
-<<<<<<< HEAD
   const [expandedFileMessages, setExpandedFileMessages] = useState({});
   const [isGlobalDragging, setIsGlobalDragging] = useState(false);
   const [waitingFirstToken, setWaitingFirstToken] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const dragDepthRef = useRef(0);
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 
   useEffect(() => {
     const loadModels = async () => {
@@ -176,20 +157,12 @@ const ChatSummary = () => {
         if (modelRes.ok) {
           const modelData = await modelRes.json();
           if (Array.isArray(modelData.models) && modelData.models.length > 0) {
-<<<<<<< HEAD
             const uniqueModels = preferredChatModels(modelData.models);
 
             setModels(uniqueModels);
             setSelectedModel(
               uniqueModels.includes(CHAT_DEFAULT_MODEL) ? CHAT_DEFAULT_MODEL : uniqueModels[0]
             );
-=======
-            const mergedModels = modelData.models.includes(CHAT_DEFAULT_MODEL)
-              ? modelData.models
-              : [CHAT_DEFAULT_MODEL, ...modelData.models];
-            setModels(mergedModels);
-            setSelectedModel(CHAT_DEFAULT_MODEL);
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
           }
         }
 
@@ -208,7 +181,6 @@ const ChatSummary = () => {
     loadModels();
   }, []);
 
-<<<<<<< HEAD
   useEffect(() => {
     const preventDefaults = (event) => {
       event.preventDefault();
@@ -297,21 +269,10 @@ const ChatSummary = () => {
 
   const handleExtract = async () => {
     if (!selectedFiles.length) {
-=======
-  const isReadyForChat = useMemo(() => extractedText.trim().length > 0, [extractedText]);
-
-  const appendMessage = (role, content) => {
-    setMessages((prev) => [...prev, { role, content }]);
-  };
-
-  const handleExtract = async () => {
-    if (!file) {
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
       appendMessage("assistant", "먼저 PDF 파일을 선택해 주세요.");
       return;
     }
 
-<<<<<<< HEAD
     if (selectedFiles.length > MAX_EXTRACT_DOCS || extractedDocs.length + selectedFiles.length > MAX_EXTRACT_DOCS) {
       toast.error("문서 추출은 5개까지만 가능합니다.");
       return;
@@ -369,32 +330,6 @@ const ChatSummary = () => {
         setExtractedDocs((prev) => [...prev, ...extractedBatch]);
       }
       setSelectedFiles([]);
-=======
-    setLoadingExtract(true);
-    appendMessage("assistant", "문서 텍스트를 추출하고 있습니다. 잠시만 기다려 주세요...");
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("ocr_model", selectedOcrModel);
-
-      const response = await fetch(`${API_BASE}/documents/extract-chat`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        appendMessage("assistant", data.detail || "텍스트 추출 중 오류가 발생했습니다.");
-        return;
-      }
-
-      setExtractedText(data.extracted_text || "");
-      appendMessage(
-        "assistant",
-        `텍스트 추출 완료: ${(data.filename || file.name)} / 문자수 ${data.extraction_info?.char_count || 0}`
-      );
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     } catch (error) {
       appendMessage("assistant", `추출 실패: ${error.message}`);
     } finally {
@@ -416,27 +351,18 @@ const ChatSummary = () => {
     }
 
     setLoadingChat(true);
-<<<<<<< HEAD
     setWaitingFirstToken(true);
     setIsStreaming(false);
     try {
       appendMessage("assistant", "");
 
       const response = await fetch(`${API_BASE}/documents/chat-summarize/stream`, {
-=======
-    try {
-      const response = await fetch(`${API_BASE}/documents/chat-summarize`, {
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-<<<<<<< HEAD
           document_text: combinedDocumentText,
-=======
-          document_text: extractedText,
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
           instruction,
           model: selectedModel,
           user_id: userDbId ? parseInt(userDbId, 10) : null,
@@ -444,7 +370,6 @@ const ChatSummary = () => {
           use_lora: useLora,
         }),
       });
-<<<<<<< HEAD
       if (!response.ok) {
         setWaitingFirstToken(false);
         const data = await response.json().catch(() => ({}));
@@ -601,33 +526,16 @@ const ChatSummary = () => {
       setLoadingChat(false);
       setWaitingFirstToken(false);
       setIsStreaming(false);
-=======
-
-      const data = await response.json();
-      if (!response.ok) {
-        appendMessage("assistant", data.detail || "응답 생성 중 오류가 발생했습니다.");
-        return;
-      }
-
-      appendMessage("assistant", data.answer || "응답이 비어 있습니다.");
-    } catch (error) {
-      appendMessage("assistant", `요청 실패: ${error.message}`);
-    } finally {
-      setLoadingChat(false);
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     }
   };
 
   return (
     <div className="chat-summary-wrap">
-<<<<<<< HEAD
       {isGlobalDragging && (
         <div className="global-drop-overlay" aria-hidden="true">
           <div className="global-drop-content">파일을 여기에 놓으면 업로드됩니다.</div>
         </div>
       )}
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
       <aside className="chat-panel">
         <h2>대화형 요약</h2>
         <p>파일을 추출한 뒤 원하는 방식으로 질문하세요.</p>
@@ -635,7 +543,6 @@ const ChatSummary = () => {
         <label className="upload-box">
           <input
             type="file"
-<<<<<<< HEAD
             multiple
             accept=".pdf,.doc,.docx,.hwpx,.jpg,.jpeg,.png,.bmp,.webp,.tif,.tiff,.gif"
             onChange={(e) =>
@@ -662,12 +569,6 @@ const ChatSummary = () => {
               추출 완료 문서: {extractedDocs.length} / {MAX_EXTRACT_DOCS}
             </div>
           )}
-=======
-            accept=".pdf,.doc,.docx,.hwpx,.jpg,.jpeg,.png,.bmp,.webp,.tif,.tiff,.gif"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
-          <span>{file ? file.name : "파일 선택"}</span>
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
         </label>
 
         <label className="field-label">OCR 모델</label>
@@ -724,7 +625,6 @@ const ChatSummary = () => {
           {messages.map((msg, idx) => (
             <div key={`${msg.role}-${idx}`} className={`bubble ${msg.role}`}>
               {msg.content}
-<<<<<<< HEAD
               {msg.meta?.type === "file" && (
                 <>
                   <div className="message-file-card">
@@ -763,10 +663,6 @@ const ChatSummary = () => {
               <span className="thinking-dot" aria-hidden="true" />답변 중입니다
             </div>
           )}
-=======
-            </div>
-          ))}
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
         </div>
 
         <div className="chat-input-row">

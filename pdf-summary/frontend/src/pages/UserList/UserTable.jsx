@@ -205,8 +205,4 @@ const UserTable = ({
   );
 };
 
-<<<<<<< HEAD
 export default UserTable;
-=======
-export default UserTable;
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477

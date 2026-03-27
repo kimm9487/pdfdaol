@@ -86,8 +86,4 @@ const UserList = () => {
   );
 };
 
-<<<<<<< HEAD
 export default UserList;
-=======
-export default UserList;
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477

@@ -27,11 +27,8 @@ const PdfSummary = () => {
     translatingOriginal,
     translatingSummary,
     streamingSummary,
-<<<<<<< HEAD
     streamingTranslationOriginal,
     streamingTranslationSummary,
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     extractionProgress,
     translations,
     isImportant,
@@ -108,11 +105,8 @@ const PdfSummary = () => {
             translatingSummary={translatingSummary}
             summarizing={summarizing}
             streamingSummary={streamingSummary}
-<<<<<<< HEAD
             streamingTranslationOriginal={streamingTranslationOriginal}
             streamingTranslationSummary={streamingTranslationSummary}
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
             fileName={fileName}
             handleTranslate={handleTranslate}
             handleSummarizeExtracted={handleSummarizeExtracted}

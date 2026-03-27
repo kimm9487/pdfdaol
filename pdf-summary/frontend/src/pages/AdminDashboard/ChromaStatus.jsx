@@ -5,7 +5,6 @@ const ChromaStatus = () => {
     const [chromaStatus, setChromaStatus] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-<<<<<<< HEAD
     const [query, setQuery] = useState('');
     const [sortBy, setSortBy] = useState('count-desc');
     const [currentPage, setCurrentPage] = useState(1);
@@ -41,8 +40,6 @@ const ChromaStatus = () => {
         if (state === 'empty') return '비어 있음';
         return '확인 필요';
     };
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
 
     const loadChromaStatus = async () => {
         setLoading(true);
@@ -57,10 +54,7 @@ const ChromaStatus = () => {
             }
             const data = await response.json();
             setChromaStatus(data);
-<<<<<<< HEAD
             setCurrentPage(1);
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
         } catch (err) {
             setError(err.message || 'Chroma 상태 조회 실패');
         } finally {
@@ -72,7 +66,6 @@ const ChromaStatus = () => {
         loadChromaStatus();
     }, []);
 
-<<<<<<< HEAD
     const collections = chromaStatus?.collections || [];
     const normalizedQuery = query.trim().toLowerCase();
     const filteredCollections = collections.filter((col) => {
@@ -130,8 +123,6 @@ const ChromaStatus = () => {
         return parsed === null ? acc : acc + parsed;
     }, 0);
 
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
     return (
         <section className="admin-card">
             <div className="card-header">
@@ -152,7 +143,6 @@ const ChromaStatus = () => {
                             <small>URL: {chromaStatus?.base_url}</small>
                         </div>
                         <div className="status-item">
-<<<<<<< HEAD
                             <h4>전체 저장량</h4>
                             <p>총 {totalChunks.toLocaleString('ko-KR')} chunk</p>
                             <small>컬렉션 {chromaStatus?.collection_count || 0}개</small>
@@ -164,15 +154,11 @@ const ChromaStatus = () => {
                         </div>
                         <div className="status-item">
                             <h4>연결 지표</h4>
-=======
-                            <h4>컬렉션</h4>
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
                             <p>총 {chromaStatus?.collection_count || 0}개</p>
                             <small>heartbeat: {String(chromaStatus?.heartbeat || '-')}</small>
                         </div>
                     </div>
 
-<<<<<<< HEAD
                     <div className="chroma-table-toolbar">
                         <input
                             type="text"
@@ -196,13 +182,10 @@ const ChromaStatus = () => {
                         </span>
                     </div>
 
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
                     <div className="table-container">
                         <table className="admin-table">
                             <thead>
                                 <tr>
-<<<<<<< HEAD
                                     <th>상태</th>
                                     <th>컬렉션명</th>
                                     <th>저장 chunk 수</th>
@@ -244,29 +227,11 @@ const ChromaStatus = () => {
                                                 ? '검색 결과가 없습니다.'
                                                 : '아직 저장된 컬렉션이 없습니다.'}
                                         </td>
-=======
-                                    <th>컬렉션명</th>
-                                    <th>저장 chunk 수</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {(chromaStatus?.collections || []).length > 0 ? (
-                                    chromaStatus.collections.map((col) => (
-                                        <tr key={col.name}>
-                                            <td>{col.name}</td>
-                                            <td>{col.count >= 0 ? col.count : '조회 실패'}</td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={2}>아직 저장된 컬렉션이 없습니다.</td>
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
                                     </tr>
                                 )}
                             </tbody>
                         </table>
                     </div>
-<<<<<<< HEAD
 
                     {totalItems > itemsPerPage && (
                         <div className="pagination">
@@ -325,8 +290,6 @@ const ChromaStatus = () => {
                             </span>
                         </div>
                     )}
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
                 </>
             )}
         </section>

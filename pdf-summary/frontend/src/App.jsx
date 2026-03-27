@@ -78,13 +78,10 @@ function App() {
           style: { fontSize: "16px", padding: "14px 20px", minWidth: "280px" },
         }}
       />
-<<<<<<< HEAD
 
       {/* 실시간 채팅 위젯 */}
       <WebSocketChat />
 
-=======
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
       {isLoggedIn && <Header setIsLoggedIn={setIsLoggedIn} />}
       <Routes>
         {/* 공개 라우트 */}

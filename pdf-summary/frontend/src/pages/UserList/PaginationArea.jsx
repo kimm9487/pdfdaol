@@ -79,8 +79,4 @@ const PaginationArea = ({
   );
 };
 
-<<<<<<< HEAD
 export default PaginationArea;
-=======
-export default PaginationArea;
->>>>>>> 320fcfe6d8c08cb0618dc26b493c943658a88477
