@@ -967,7 +967,7 @@ export default function WebSocketChat() {
       setDmReadStateByUserAndPersist,
     ],
   );
-
+  
   if (!hasAuthSession) return null;
 
   return (

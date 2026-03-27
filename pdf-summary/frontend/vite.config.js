@@ -10,8 +10,10 @@ export default defineConfig(({ mode }) => {
   // 로컬: npm run dev → fallback: http://localhost:8000
   // 도커: VITE_BACKEND_TARGET 또는 BACKEND_HOST 환경변수
   const backendTarget = process.env.VITE_BACKEND_TARGET || process.env.BACKEND_HOST || "http://localhost:8000";
+  const socketTarget = process.env.VITE_SOCKET_TARGET || backendTarget;
 
   console.log(`[Vite] Backend Target: ${backendTarget}`);
+  console.log(`[Vite] Socket Target: ${socketTarget}`);
 
   return {
     plugins: [react()],
@@ -24,24 +26,24 @@ export default defineConfig(({ mode }) => {
           proxy: {
             // ✅ Socket.IO (WebSocket 포함)
             "/socket.io": {
-              target: backendTarget,
+              target: socketTarget,
               ws: true,
               changeOrigin: true,
               secure: false,
               rejectUnauthorized: false,
               agent: new http.Agent({ keepAlive: true }),
               headers: {
-                Origin: backendTarget,
+                Origin: socketTarget,
               },
 
               configure: (proxy) => {
-                proxy.on("proxyReqWs", (proxyReq, req, res, options) => {
-                  console.log("[VITE-WS] WebSocket 프록시 요청 →", req.url, "→", backendTarget);
+                proxy.on("proxyReqWs", (_proxyReq, req) => {
+                  console.log("[VITE-WS] WebSocket 프록시 요청 →", req.url, "→", socketTarget);
                 });
 
-                proxy.on("error", (err, req, res) => {
+                proxy.on("error", (err) => {
                   console.error("[VITE-WS] 프록시 에러:", err.message);
-                  console.error("[VITE-WS] 타겟:", backendTarget);
+                  console.error("[VITE-WS] 타겟:", socketTarget);
                 });
               },
             },
