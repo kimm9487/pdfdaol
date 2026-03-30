@@ -3,6 +3,15 @@ import React, { useState, useEffect, useRef } from "react";
 import { GUIDE_CATEGORIES, GUIDE_QA } from "./guideData";
 import "./GuideChatbot.css";
 
+// [2026-03-25 osj] 챗봇 토글 위에 표시할 로테이션 툴팁 메시지
+const TOOLTIP_TIPS = [
+  "PDF 요약이 필요하신가요? 📄",
+  "OCR 모델은 언제 선택하나요? 🔍",
+  "이용 가이드가 궁금하신가요? 📖",
+  "무엇이든 물어보세요! 💬",
+  "마이페이지에서 뭘 할 수 있나요? 📋",
+];
+
 // [2026-03-25 osj] 챗봇 메시지 초기값 (인사 메시지)
 const WELCOME_MESSAGE = {
   id: "welcome",
@@ -18,6 +27,11 @@ const GuideChatbot = () => {
   const [activeCategory, setActiveCategory] = useState("basic");
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
 
+  // [2026-03-30 osj] 로테이션 툴팁 상태
+  const [showTooltip, setShowTooltip] = useState(true);
+  const [tipIndex, setTipIndex] = useState(0);
+  const [tipVisible, setTipVisible] = useState(true);
+
   const messagesEndRef = useRef(null);
 
   // [2026-03-25 osj] 새 메시지 추가 시 자동 스크롤
@@ -26,6 +40,19 @@ const GuideChatbot = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isOpen]);
+
+  // [2026-03-30 osj] 툴팁 메시지 로테이션: 페이드 아웃 후 다음 메시지로 교체
+  useEffect(() => {
+    if (!showTooltip || isOpen) return;
+    const interval = setInterval(() => {
+      setTipVisible(false);
+      setTimeout(() => {
+        setTipIndex((prev) => (prev + 1) % TOOLTIP_TIPS.length);
+        setTipVisible(true);
+      }, 350);
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [showTooltip, isOpen]);
 
   // [2026-03-25 osj] 질문 클릭 → Q+A 메시지 버블로 추가
   const handleQuestionClick = (qa) => {
@@ -54,6 +81,28 @@ const GuideChatbot = () => {
 
   return (
     <>
+      {/* [2026-03-30 osj] 토글 버튼 위 로테이션 툴팁 버블 */}
+      {showTooltip && !isOpen && (
+        <div
+          className={`guide-tooltip-bubble ${tipVisible ? "tip-visible" : "tip-hidden"}`}
+        >
+          <button
+            className="guide-tooltip-close"
+            onClick={() => setShowTooltip(false)}
+            aria-label="툴팁 닫기"
+          >
+            ×
+          </button>
+          <p className="guide-tooltip-text">{TOOLTIP_TIPS[tipIndex]}</p>
+          <span
+            className="guide-tooltip-sub guide-tooltip-sub--link"
+            onClick={() => setIsOpen(true)}
+          >
+            이용 가이드 열기 👆
+          </span>
+        </div>
+      )}
+
       {/* [2026-03-25 osj] 챗봇 토글 버튼 */}
       <button
         className={`guide-chatbot-toggle ${isOpen ? "open" : ""}`}

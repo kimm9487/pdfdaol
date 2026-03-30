@@ -314,3 +314,98 @@
     left: -100vw;
   }
 }
+
+/* ===== 로테이션 툴팁 버블 ===== */
+.guide-tooltip-bubble {
+  position: fixed;
+  bottom: 96px; /* 토글 버튼(56px) + 간격(12px) + 여백 */
+  left: 22px;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 12px 36px 12px 16px;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.13),
+    0 1px 4px rgba(0, 0, 0, 0.08);
+  z-index: 1095;
+  min-width: 190px;
+  max-width: 240px;
+  cursor: default;
+  /* 말풍선 꼬리 */
+  &::after {
+    content: "";
+    position: absolute;
+    bottom: -8px;
+    left: 28px;
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid #ffffff;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.08));
+  }
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.guide-tooltip-bubble.tip-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.guide-tooltip-bubble.tip-hidden {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.guide-tooltip-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: none;
+  color: #aaa;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.guide-tooltip-close:hover {
+  background: #f0f0f0;
+  color: #555;
+}
+
+.guide-tooltip-text {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a2e;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.guide-tooltip-sub {
+  font-size: 11.5px;
+  color: #27ae60;
+  font-weight: 500;
+}
+
+.guide-tooltip-sub--link {
+  cursor: pointer;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+
+.guide-tooltip-sub--link:hover {
+  color: #1e8449;
+}

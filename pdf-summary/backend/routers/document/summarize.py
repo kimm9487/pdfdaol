@@ -27,7 +27,8 @@ from services.ai_service_chat import (
     summarize_with_instruction,
     summarize_with_instruction_stream,
 )
-from database import get_db, PdfDocument, can_user_access_document, log_admin_activity
+# [방법3 수정] SessionLocal을 직접 import하여 generate() 안에서 독립 세션 생성에 사용
+from database import get_db, SessionLocal, PdfDocument, can_user_access_document, log_admin_activity
 from celery_app import celery_app
 from tasks.document_tasks import extract_document_task, summarize_document_task
 
@@ -657,6 +658,15 @@ async def summarize_extracted_document(
 
     ip_address = request.client.host if request.client else "unknown"
 
+    # [방법3 수정] SQLAlchemy 객체(doc)를 generate() 안에서 직접 참조하면
+    # 외부 세션(db)이 닫힌 후 DetachedInstanceError가 발생할 수 있으므로
+    # 필요한 값을 미리 일반 변수로 추출해둠
+    doc_id = doc.id
+    doc_extracted_text = doc.extracted_text
+    doc_filename = doc.filename
+    doc_ocr_model = doc.ocr_model
+    doc_created_at = doc.created_at
+
     def _sse(data: dict) -> str:
         return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -665,7 +675,7 @@ async def summarize_extracted_document(
         summary_start = time.time()
 
         try:
-            async for token in summarize_text_stream(doc.extracted_text, model=model):
+            async for token in summarize_text_stream(doc_extracted_text, model=model):
                 collected.append(token)
                 yield _sse({"type": "token", "text": token})
         except Exception as exc:
@@ -676,37 +686,50 @@ async def summarize_extracted_document(
         full_summary = "".join(collected)
         summary_time = time.time() - summary_start
 
-        doc.summary = full_summary
-        doc.model_used = model
-        doc.summary_time_seconds = round(summary_time, 3)
-        doc.updated_at = datetime.datetime.now()
-        db.commit()
+        # [방법3 수정] Depends(get_db)로 받은 외부 세션(db) 대신
+        # SessionLocal()로 독립 세션을 생성하여 DB 저장
+        # → 라우터 수명주기(외부 세션 닫힘)와 무관하게 commit 보장
+        # → try/finally로 세션을 반드시 닫아 커넥션 누수 방지
+        independent_db = SessionLocal()
+        try:
+            independent_doc = independent_db.query(PdfDocument).filter(
+                PdfDocument.id == doc_id
+            ).first()
+            if independent_doc:
+                independent_doc.summary = full_summary
+                independent_doc.model_used = model
+                independent_doc.summary_time_seconds = round(summary_time, 3)
+                independent_doc.updated_at = datetime.datetime.now()
+                independent_db.commit()
 
-        log_admin_activity(
-            db=db,
-            admin_user_id=user_id,
-            action="DOCUMENT_SUMMARIZED",
-            target_type="DOCUMENT",
-            target_id=doc.id,
-            details=json.dumps({
-                "filename": doc.filename,
-                "llm_model": model,
-                "summary_length": len(full_summary),
-            }),
-            ip_address=ip_address,
-        )
+                log_admin_activity(
+                    db=independent_db,
+                    admin_user_id=user_id,
+                    action="DOCUMENT_SUMMARIZED",
+                    target_type="DOCUMENT",
+                    target_id=doc_id,
+                    details=json.dumps({
+                        "filename": doc_filename,
+                        "llm_model": model,
+                        "summary_length": len(full_summary),
+                    }),
+                    ip_address=ip_address,
+                )
+        finally:
+            # [방법3 수정] 독립 세션은 반드시 명시적으로 닫아야 커넥션 풀 누수 없음
+            independent_db.close()
 
         yield _sse({
             "type": "done",
-            "id": doc.id,
-            "document_id": doc.id,
-            "filename": doc.filename,
+            "id": doc_id,
+            "document_id": doc_id,
+            "filename": doc_filename,
             "summary": full_summary,
-            "ocr_model": doc.ocr_model,
-            "model_used": doc.model_used,
+            "ocr_model": doc_ocr_model,
+            "model_used": model,
             "summary_time": f"{summary_time:.2f}초",
-            "created_at": doc.created_at.isoformat() if doc.created_at else None,
-            "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+            "created_at": doc_created_at.isoformat() if doc_created_at else None,
+            "updated_at": datetime.datetime.now().isoformat(),
         })
 
     return StreamingResponse(
