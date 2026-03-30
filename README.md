@@ -1,19 +1,22 @@
-# PDF 문서 요약/번역 시스템
+﻿
+# Daol Mini Project: PDF 요약/번역/대화형 AI 시스템
 
-PDF/문서/이미지를 업로드해 텍스트를 추출하고, Ollama 모델로 요약/영문 번역까지 수행하는 웹 애플리케이션입니다. 결과는 MariaDB에 저장되며, 사용자/관리자 기능과 세션 관리가 분리되어 있습니다.
+PDF/문서/이미지 업로드, AI 요약/번역, 대화형 LLM, 가이드 챗봇, 실시간 웹소켓 채팅, 관리자 기능, 세션 관리 등 다양한 기능을 제공하는 통합 웹 애플리케이션입니다.
+
+---
 
 ---
 
 ## 주요 기능
 
-- 다중 포맷 문서 업로드 및 OCR 추출
-- 2단계 처리: `추출(/api/extract) -> 요약(/api/summarize-document)`
-- 레거시 1단계 처리: 업로드+요약 동시 처리 `(/api/summarize)`
-- 원문/요약 영문 번역 및 동일 모델 재요청 시 캐시 반환
-- 문서 공개/비공개 전환 및 중요 문서(4자리 비밀번호) 처리
-- 사용자/관리자 문서 조회, 수정, 삭제
-- 선택 문서 CSV/ZIP 다운로드(중요 문서 포함 시 보호 ZIP)
-- 세션 검증, 세션 강제 종료, 로그인 이력 조회
+- 다양한 문서 포맷 업로드 및 OCR/AI 요약/번역
+- 크로마DB 기반 벡터 검색 및 문서 임베딩
+- Ollama 기반 대화형 LLM(문서 질의응답, 요약, 번역)
+- 실시간 웹소켓 채팅(문서/AI/관리자/유저 간)
+- 가이드 챗봇(초보자 안내, FAQ)
+- 관리자/사용자 권한 분리, 세션 및 이력 관리
+- 문서 공개/비공개, 중요 문서 보호, CSV/ZIP 다운로드
+- 실시간 대시보드, 통계, 알림
 
 ---
 
@@ -22,53 +25,46 @@ PDF/문서/이미지를 업로드해 텍스트를 추출하고, Ollama 모델로
 ```text
 daol_minipro/
 ├── README.md
-├── environment.yml
-├── conda_packages.txt
-├── conda_pip.txt
+├── environment.yml / conda_packages.txt / conda_pip.txt
 └── pdf-summary/
-    ├── docker-compose.yml
-    ├── backend/
-    │   ├── main.py
-    │   ├── database.py
-    │   ├── database_migration.sql
-    │   ├── requirements.txt
-    │   ├── routers/
-    │   │   ├── auth/
-    │   │   │   ├── __init__.py
-    │   │   │   ├── router.py
-    │   │   │   ├── login.py
-    │   │   │   ├── register.py
-    │   │   │   ├── social.py
-    │   │   │   └── profile.py
-    │   │   ├── sessions.py
-    │   │   ├── find_account.py
-    │   │   ├── summary.py
-    │   │   ├── is_public.py
-    │   │   ├── history.py
-    │   │   ├── admin.py
-    │   │   └── download.py
-    │   ├── services/
-    │   │   ├── ai_service.py
-    │   │   └── pdf_service.py
-    │   └── utils/
-    ├── frontend/
-    │   ├── package.json
-    │   └── src/
-    └── frontend_old/
+  ├── docker-compose.yml
+  ├── backend/
+  │   ├── main.py                # FastAPI 진입점, WebSocket 서버
+  │   ├── celery_app.py          # Celery 태스크 큐
+  │   ├── database.py           # SQLAlchemy, MariaDB 연동
+  │   ├── requirements.txt      # 백엔드 의존성
+  │   ├── routers/              # API 라우터 (auth, admin, document, websocket 등)
+  │   ├── services/
+  │   │   ├── ai_service.py, ai_service_chat.py, ai_service_extract.py  # LLM/챗봇/추출
+  │   │   ├── pdf_service.py    # PDF/이미지 처리
+  │   │   └── ocr/              # easyocr, paddleocr, tesseract 등 OCR 엔진
+  │   ├── tasks/                # 비동기 문서 처리 태스크
+  │   ├── utils/                # 인증, 이메일, 디스코드 등 유틸
+  │   ├── websocket_main.py     # 웹소켓 서버 진입점
+  │   └── Dockerfile            # CUDA/AI 환경용
+  ├── frontend/
+  │   ├── package.json, Dockerfile
+  │   └── src/
+  │       ├── components/       # GuideChatbot, WebSocketChat 등
+  │       ├── pages/            # PdfSummary, AdminDashboard, ChatSummary 등
+  │       └── ...
+  ├── db-backups/               # DB 백업 SQL
+  └── frontend_old/             # 레거시 프론트엔드
 ```
 
 ---
 
 ## 기술 스택
 
-| 구분          | 기술                                             |
+
+| 구분          | 기술/라이브러리                                   |
 | ------------- | ------------------------------------------------ |
-| Frontend      | React 19, Vite, React Router                     |
-| Backend       | FastAPI, Uvicorn                                 |
-| AI            | Ollama                                           |
+| Frontend      | React 19, Vite, React Router, WebSocket, GuideChatbot |
+| Backend       | FastAPI, Uvicorn, Celery, WebSocket, python-socketio |
+| AI/LLM        | Ollama, ChromaDB(벡터DB), PyTorch, PaddleOCR, EasyOCR, Tesseract |
 | DB            | MariaDB                                          |
 | ORM           | SQLAlchemy                                       |
-| OCR/문서 처리 | PyPDF2, Tesseract, EasyOCR, PaddleOCR, pdf2image |
+| 기타          | Docker, docker-compose, Redis, Flower, etc.      |
 
 ---
 
@@ -76,11 +72,27 @@ daol_minipro/
 
 ### 1. 백엔드 의존성 설치
 
+#### (1) conda 환경 생성/동기화
+최신 환경 전체 복원:
 ```bash
+conda env create -f environment.yml
 conda activate tfod
+```
+또는 기존 환경 업데이트:
+```bash
+conda env update -f environment.yml --prune
+conda activate tfod
+```
+
+#### (2) pip 패키지 추가 설치(필요시)
+```bash
 cd pdf-summary/backend
 pip install -r requirements.txt
 ```
+
+> requirements.txt는 최소 실행 패키지 목록입니다. 전체 환경 동기화는 environment.yml/conda_packages.txt/conda_pip.txt 참고.
+> easyocr, paddleocr, torch 등 일부 대형 패키지는 conda/Docker로 설치 권장(의존성 충돌 방지).
+
 
 ### 2. DB 준비
 
@@ -88,6 +100,7 @@ pip install -r requirements.txt
 cd pdf-summary/backend
 mysql -u root -p < database_migration.sql
 ```
+
 
 환경변수 예시: `pdf-summary/backend/.env`
 
@@ -100,12 +113,14 @@ DB_NAME=pdf_summary
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
+
 ### 3. Ollama 실행
 
 ```bash
 ollama serve
 ollama pull gemma3:latest
 ```
+
 
 ### 4. 백엔드 실행
 
@@ -117,7 +132,16 @@ python main.py
 - API: `http://localhost:8000`
 - OpenAPI Docs: `http://localhost:8000/docs`
 
+
 ### 5. 프론트엔드 실행
+---
+## 패키지/환경 관리 주의사항
+
+- tfod 가상환경의 전체 패키지 목록은 conda_packages.txt, conda_pip.txt, environment.yml에 저장되어 있습니다.
+- requirements.txt는 최소 실행 패키지(코드 의존성 기준)만 포함합니다.
+- 환경 동기화가 필요할 때는 conda env export > environment.yml, pip freeze > conda_pip.txt 등으로 갱신하세요.
+- easyocr, paddleocr, torch 등 대형 패키지는 conda/Docker로 설치 권장(의존성 충돌 방지).
+- 환경/패키지 변경 후에는 반드시 재실행 및 호환성 확인 바랍니다.
 
 ```bash
 cd pdf-summary/frontend
@@ -248,3 +272,4 @@ docker compose up --build
 - 중요 문서가 포함된 선택 다운로드는 자동으로 ZIP 모드가 적용될 수 있습니다.
 - 문서 업로드의 핵심 처리 함수는 `pdf-summary/backend/routers/summary.py`의 `_build_extraction_document()`입니다.
 - 백엔드 실행 진입점은 `pdf-summary/backend/main.py`입니다.
+
