@@ -9,10 +9,13 @@ const UserTable = ({
   requestSort,
   canCheck,
   canView,
+  getViewButtonLabel,
+  paymentLoadingDocId,
   handleCheckboxChange,
   handleViewClick,
   selectedItems,
   isMyDocument,
+  isAdmin,
 }) => {
   const highlightText = (text, query) => {
     if (!query || !text) return text || "";
@@ -94,6 +97,22 @@ const UserTable = ({
     },
     {
       key: null,
+      label: "결제",
+      sortable: false,
+      render: (item) => {
+        if (!item.isPublic || !item.isImportant) return "-";
+        if (isAdmin || isMyDocument(item)) {
+          return <span className="status-badge payment-exempt">면제</span>;
+        }
+        return item.isPaidByViewer ? (
+          <span className="status-badge payment-paid">결제완료</span>
+        ) : (
+          <span className="status-badge payment-pending">미결제</span>
+        );
+      },
+    },
+    {
+      key: null,
       label: "상태",
       sortable: false,
       render: () => <span className="status-badge completed">완료</span>,
@@ -106,9 +125,11 @@ const UserTable = ({
         <button
           className="view-btn"
           onClick={() => handleViewClick(item.id)}
-          disabled={!canView(item)}
+          disabled={!canView(item) && getViewButtonLabel(item) === "보기"}
         >
-          보기
+          {paymentLoadingDocId === item.id
+            ? "처리중"
+            : getViewButtonLabel(item)}
         </button>
       ),
     },

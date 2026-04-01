@@ -5,6 +5,7 @@ import ChromaStatus from './ChromaStatus';
 import ActiveSessions from './ActiveSessions';
 import UserManagement from './UserManagement';
 import DocumentList from './DocumentList';
+import PaymentLogList from './PaymentLogList';
 import { useAuthRedirect } from '../../hooks/useAuthRedirect';
 
 const AdminDashboard = () => {
@@ -22,6 +23,7 @@ const AdminDashboard = () => {
                 <ActiveSessions />
                 <UserManagement />
                 <DocumentList />
+                <PaymentLogList />
             </div>
         </div>
     );

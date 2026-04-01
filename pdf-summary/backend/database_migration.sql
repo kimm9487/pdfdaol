@@ -132,6 +132,54 @@ ALTER TABLE pdf_documents ADD COLUMN IF NOT EXISTS password VARCHAR(4) DEFAULT N
 ALTER TABLE pdf_documents ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT TRUE COMMENT '공개 여부 (True: 공개, False: 비공개)' AFTER password;
 
 -- ========================================
+-- 5-2. 카카오페이 결제 이력 테이블
+-- ========================================
+CREATE TABLE IF NOT EXISTS payment_transactions (
+  id INT NOT NULL AUTO_INCREMENT,
+  document_id INT NOT NULL,
+  user_id INT NOT NULL,
+  provider VARCHAR(30) NOT NULL DEFAULT 'kakaopay',
+  status ENUM('pending','approved','canceled','failed') NOT NULL DEFAULT 'pending',
+  amount INT NOT NULL DEFAULT 0,
+  partner_order_id VARCHAR(100) NOT NULL,
+  partner_user_id VARCHAR(100) NOT NULL,
+  tid VARCHAR(100) DEFAULT NULL,
+  payment_method_type VARCHAR(30) DEFAULT NULL,
+  approved_at DATETIME DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+  UNIQUE KEY ux_payment_partner_order_id (partner_order_id),
+  KEY ix_payment_document_id (document_id),
+  KEY ix_payment_user_id (user_id),
+  KEY ix_payment_provider (provider),
+  KEY ix_payment_status (status),
+  KEY ix_payment_tid (tid),
+  CONSTRAINT fk_payment_document FOREIGN KEY (document_id) REFERENCES pdf_documents (id),
+  CONSTRAINT fk_payment_user FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 기존 DB를 위한 결제 테이블 보강 (없으면 추가)
+ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS provider VARCHAR(30) NOT NULL DEFAULT 'kakaopay' AFTER user_id;
+ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS status ENUM('pending','approved','canceled','failed') NOT NULL DEFAULT 'pending' AFTER provider;
+ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS amount INT NOT NULL DEFAULT 0 AFTER status;
+ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS partner_order_id VARCHAR(100) NOT NULL AFTER amount;
+ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS partner_user_id VARCHAR(100) NOT NULL AFTER partner_order_id;
+ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS tid VARCHAR(100) DEFAULT NULL AFTER partner_user_id;
+ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS payment_method_type VARCHAR(30) DEFAULT NULL AFTER tid;
+ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS approved_at DATETIME DEFAULT NULL AFTER payment_method_type;
+ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS created_at DATETIME DEFAULT CURRENT_TIMESTAMP AFTER approved_at;
+ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at;
+
+ALTER TABLE payment_transactions ADD UNIQUE INDEX IF NOT EXISTS ux_payment_partner_order_id (partner_order_id);
+ALTER TABLE payment_transactions ADD INDEX IF NOT EXISTS ix_payment_document_id (document_id);
+ALTER TABLE payment_transactions ADD INDEX IF NOT EXISTS ix_payment_user_id (user_id);
+ALTER TABLE payment_transactions ADD INDEX IF NOT EXISTS ix_payment_provider (provider);
+ALTER TABLE payment_transactions ADD INDEX IF NOT EXISTS ix_payment_status (status);
+ALTER TABLE payment_transactions ADD INDEX IF NOT EXISTS ix_payment_tid (tid);
+
+-- ========================================
 -- 6. 통계 정보 확인용 쿼리 (필요할 때 실행)
 -- ========================================
 /*

@@ -24,6 +24,7 @@ export const useUserList = () => {
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordDocId, setPasswordDocId] = useState(null);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [paymentLoadingDocId, setPaymentLoadingDocId] = useState(null);
 
   const [sortConfig, setSortConfig] = useState({
     key: "sortDate",
@@ -58,6 +59,44 @@ export const useUserList = () => {
     );
   }, []);
 
+  useEffect(() => {
+    const onPaymentMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      const payload = event.data || {};
+      if (payload.type === "kakaopay:approved") {
+        const paidDocId = Number(payload.documentId);
+        if (paidDocId) {
+          setData((prev) =>
+            prev.map((item) =>
+              Number(item.id) === paidDocId
+                ? {
+                    ...item,
+                    isPaidByViewer: true,
+                    requiresPayment: false,
+                  }
+                : item,
+            ),
+          );
+        }
+        setPaymentLoadingDocId(null);
+        toast.success("결제가 완료되었습니다.");
+      }
+
+      if (payload.type === "kakaopay:failed") {
+        setPaymentLoadingDocId(null);
+        toast.error("결제가 취소되었거나 실패했습니다.");
+      }
+
+      if (payload.type === "kakaopay:error") {
+        setPaymentLoadingDocId(null);
+        toast.error(payload.detail || "결제 처리 중 오류가 발생했습니다.");
+      }
+    };
+
+    window.addEventListener("message", onPaymentMessage);
+    return () => window.removeEventListener("message", onPaymentMessage);
+  }, []);
+
   // 데이터 로드
   useEffect(() => {
     const fetchData = async () => {
@@ -84,9 +123,12 @@ export const useUserList = () => {
         }
 
         // 문서 목록 가져오기
-        const docRes = await fetch(buildApiUrl("/api/admin/documents"), {
+        const docRes = await fetch(
+          buildApiUrl(`/api/admin/documents?viewer_user_id=${Number(userDbId) || 0}`),
+          {
           headers: { Authorization: `Bearer ${sessionToken}` },
-        });
+          },
+        );
 
         if (!docRes.ok) throw new Error(`문서 목록 오류: ${docRes.status}`);
         const docResult = await docRes.json();
@@ -121,6 +163,8 @@ export const useUserList = () => {
             created_at: doc.created_at,
             isPublic: doc.is_public ?? true,
             isImportant: doc.is_important ?? false,
+            isPaidByViewer: doc.is_paid_by_viewer ?? false,
+            requiresPayment: doc.requires_payment ?? false,
             password: doc.password ?? null,
             category: doc.category || "기타",
           };
@@ -156,8 +200,27 @@ export const useUserList = () => {
     [isMyDocument, isAdmin],
   );
   const canView = useCallback(
-    (item) => isAdmin || item.isPublic || isMyDocument(item),
+    (item) => {
+      if (isAdmin || isMyDocument(item)) return true;
+      if (!item.isPublic) return false;
+      if (item.isImportant) return Boolean(item.isPaidByViewer);
+      return true;
+    },
     [isAdmin, isMyDocument],
+  );
+
+  const requiresPayment = useCallback(
+    (item) => {
+      if (typeof item.requiresPayment === "boolean") return item.requiresPayment;
+      if (isAdmin || isMyDocument(item)) return false;
+      return Boolean(item.isPublic && item.isImportant && !item.isPaidByViewer);
+    },
+    [isAdmin, isMyDocument],
+  );
+
+  const getViewButtonLabel = useCallback(
+    (item) => (requiresPayment(item) ? "결제" : "보기"),
+    [requiresPayment],
   );
 
   // 필터링 및 정렬 처리
@@ -294,14 +357,81 @@ export const useUserList = () => {
 
   const handleViewClick = (docId) => {
     const doc = data.find((item) => item.id === docId);
-    if (!doc || !canView(doc)) return toast.error("권한이 없습니다.");
+    if (!doc) return toast.error("문서를 찾을 수 없습니다.");
+    if (requiresPayment(doc)) {
+      startKakaoPayment(doc);
+      return;
+    }
+    if (!canView(doc)) return toast.error("권한이 없습니다.");
     setSelectedDoc(doc);
-    if (doc.isImportant && !isAdmin) {
+    const shouldAskPassword =
+      doc.isImportant && !isAdmin && (isMyDocument(doc) || !doc.isPublic);
+    if (shouldAskPassword) {
       setPasswordDocId(doc.id);
       setPasswordInput("");
       setIsPasswordModalOpen(true);
     } else {
       setIsModalOpen(true);
+    }
+  };
+
+  const startKakaoPayment = async (doc) => {
+    if (!currentUserId) {
+      toast.error("로그인 정보가 유효하지 않습니다.");
+      return;
+    }
+    setPaymentLoadingDocId(doc.id);
+    try {
+      const res = await fetch(buildApiUrl("/api/payments/kakao/ready"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document_id: Number(doc.id),
+          user_id: Number(currentUserId),
+        }),
+      });
+
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.detail || "결제 요청 실패");
+      }
+
+      if (payload.already_paid) {
+        setData((prev) =>
+          prev.map((item) =>
+            Number(item.id) === Number(doc.id)
+              ? { ...item, isPaidByViewer: true }
+              : item,
+          ),
+        );
+        toast.success("이미 결제된 문서입니다. 바로 열람할 수 있습니다.");
+        return;
+      }
+
+      const redirectUrl = payload.next_redirect_pc_url || payload.next_redirect_mobile_url;
+      if (!redirectUrl) throw new Error("결제 리다이렉트 URL을 받지 못했습니다.");
+
+      const popupWidth = 520;
+      const popupHeight = 760;
+      const popupLeft = Math.max(0, window.screenX + (window.outerWidth - popupWidth) / 2);
+      const popupTop = Math.max(0, window.screenY + (window.outerHeight - popupHeight) / 2);
+      const popupOptions = [
+        `width=${popupWidth}`,
+        `height=${popupHeight}`,
+        `left=${Math.round(popupLeft)}`,
+        `top=${Math.round(popupTop)}`,
+        "resizable=yes",
+        "scrollbars=yes",
+      ].join(",");
+
+      const paymentPopup = window.open(redirectUrl, "kakaopay_payment", popupOptions);
+      if (!paymentPopup) {
+        throw new Error("팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.");
+      }
+    } catch (err) {
+      toast.error(err.message || "결제 요청 중 오류가 발생했습니다.");
+    } finally {
+      // 팝업 결제는 결과 메시지 수신 시 로딩을 해제합니다.
     }
   };
 
@@ -461,6 +591,8 @@ export const useUserList = () => {
     isMyDocument,
     canCheck,
     canView,
+    requiresPayment,
+    getViewButtonLabel,
     handleCheckboxChange,
     handleViewClick,
     handlePasswordSubmit,
@@ -477,5 +609,6 @@ export const useUserList = () => {
     setItemsPerPage,
     setPasswordInput,
     setIsPasswordModalOpen,
+    paymentLoadingDocId,
   };
 };
