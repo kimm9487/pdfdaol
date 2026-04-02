@@ -35,6 +35,8 @@ from tasks.document_tasks import extract_document_task, summarize_document_task
 summarize_router = APIRouter(tags=["Summarization & Extraction"])
 MAX_CHAT_DOCUMENTS = 5
 CHAT_DOCUMENT_PATTERN = r"^\[문서\s*\d+\s*:\s*.+?\]\s*$"
+_chat_cancel_events = {}
+_chat_cancel_lock = asyncio.Lock()
 
 
 def _stringify_detail(detail, fallback: str = "오류가 발생했습니다.") -> str:
@@ -78,6 +80,18 @@ class ChatSummarizeRequest(BaseModel):
     user_id: Optional[int] = None
     use_rag: bool = True
     use_lora: bool = False
+    request_id: Optional[str] = None
+
+
+class ChatCancelRequest(BaseModel):
+    request_id: str
+    user_id: Optional[int] = None
+
+
+def _chat_cancel_key(user_id: Optional[int], request_id: str) -> str:
+    normalized_request_id = str(request_id or "").strip()
+    normalized_user = str(user_id) if user_id is not None else "shared"
+    return f"{normalized_user}:{normalized_request_id}"
 
 
 @summarize_router.post("/chat-summarize")
@@ -121,13 +135,20 @@ async def chat_summarize_stream(request: ChatSummarizeRequest):
     if request.use_lora:
         model_used = os.getenv("LORA_MODEL_NAME", model_used)
 
+    request_id = str(request.request_id or "").strip()
+    cancel_key = _chat_cancel_key(request.user_id, request_id) if request_id else None
+    cancel_event = asyncio.Event() if cancel_key else None
+    if cancel_key:
+        async with _chat_cancel_lock:
+            _chat_cancel_events[cancel_key] = cancel_event
+
     def _sse(data: dict) -> str:
         return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
     async def generate():
         collected = []
         # 첫 토큰 전까지 대기 시간이 길어질 수 있어, 초기 keep-alive 이벤트를 먼저 전송합니다.
-        yield _sse({"type": "start"})
+        yield _sse({"type": "start", "request_id": request_id or None})
         try:
             async for token in summarize_with_instruction_stream(
                 text=text,
@@ -136,13 +157,31 @@ async def chat_summarize_stream(request: ChatSummarizeRequest):
                 user_scope=_build_chat_scope(request.user_id),
                 use_rag=request.use_rag,
                 use_lora=request.use_lora,
+                cancel_event=cancel_event,
             ):
+                if cancel_event and cancel_event.is_set():
+                    yield _sse(
+                        {
+                            "type": "canceled",
+                            "request_id": request_id,
+                            "detail": "사용자 요청으로 정지",
+                        }
+                    )
+                    return
                 collected.append(token)
                 yield _sse({"type": "token", "text": token})
+        except asyncio.CancelledError:
+            if cancel_event:
+                cancel_event.set()
+            raise
         except Exception as exc:
             detail = _stringify_detail(getattr(exc, "detail", str(exc)), "요약 중 오류가 발생했습니다.")
             yield _sse({"type": "error", "detail": detail})
             return
+        finally:
+            if cancel_key:
+                async with _chat_cancel_lock:
+                    _chat_cancel_events.pop(cancel_key, None)
 
         yield _sse(
             {

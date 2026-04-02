@@ -1,5 +1,5 @@
 import os
-from typing import AsyncIterator
+from typing import AsyncIterator, Optional
 
 from services.ai_service import (
     summarize_with_instruction as _summarize_with_instruction,
