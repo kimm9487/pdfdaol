@@ -1,6 +1,7 @@
 import datetime
 import os
 import uuid
+from typing import Optional
 
 import requests
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -51,7 +52,7 @@ def _calc_amount(document: PdfDocument) -> int:
 def ready_kakao_payment(
     document_id: int = Body(...),
     user_id: int = Body(...),
-    amount: int | None = Body(None),
+    amount: Optional[int] = Body(None),
     db: Session = Depends(get_db),
 ):
     document = db.query(PdfDocument).filter(PdfDocument.id == document_id).first()
