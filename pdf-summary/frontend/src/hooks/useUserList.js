@@ -28,7 +28,7 @@ export const useUserList = () => {
 
   const [sortConfig, setSortConfig] = useState({
     key: "sortDate",
-    direction: "asc",
+    direction: "desc",
   });
   const [availableModels, setAvailableModels] = useState(["전체 모델"]);
   const [itemsPerPage, setItemsPerPage] = useState(10);
