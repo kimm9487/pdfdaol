@@ -18,7 +18,7 @@ _IS_DOCKER = os.path.exists("/.dockerenv")
 _DEFAULT_OLLAMA_BASE_URL = "http://ollama:11434" if _IS_DOCKER else "http://127.0.0.1:11434"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", _DEFAULT_OLLAMA_BASE_URL)
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gemma3:latest")
-LORA_MODEL_NAME = os.getenv("LORA_MODEL_NAME", "phi3:mini")
+LORA_MODEL_NAME = os.getenv("LORA_MODEL_NAME", "gemma3:latest")
 RAG_ENABLED = os.getenv("RAG_ENABLED", "true").strip().lower() == "true"
 CHROMA_BASE_URL = os.getenv("CHROMA_BASE_URL", "http://chroma:8000")
 CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "documents")

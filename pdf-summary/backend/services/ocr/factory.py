@@ -1,5 +1,6 @@
 import os
 import time
+import asyncio
 from typing import Callable, Optional
 
 import numpy as np
@@ -66,9 +67,47 @@ def extract_with_model_sync(
     if not file_bytes:
         raise HTTPException(status_code=422, detail="파일이 비어있습니다.")
 
-    extension = os.path.splitext(filename or "uploaded_file")[1].lower()
-    images = render_input_to_images(file_bytes, extension)
     start_time = time.time()
+    extension = os.path.splitext(filename or "uploaded_file")[1].lower()
+
+    # 동기 경로에서도 문서 확장자(doc/docx/hwp/hwpx)를 지원하도록
+    # 기존 pdf_service 변환/추출 로직으로 위임한다.
+    if extension in {".doc", ".docx", ".hwp", ".hwpx"}:
+        from services.pdf_service import extract_text_from_pdf
+
+        return asyncio.run(
+            extract_text_from_pdf(
+                file_bytes=file_bytes,
+                filename=filename,
+                ocr_model=model,
+            )
+        )
+
+    if model == "paddleocr" and extension == ".pdf":
+        try:
+            import io
+            import PyPDF2
+
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+            native_parts = []
+            for page_idx, page in enumerate(pdf_reader.pages, start=1):
+                page_text = page.extract_text() or ""
+                if page_text.strip():
+                    native_parts.append(f"[페이지 {page_idx}]\n{to_layout_markdown(page_text)}")
+            native_text = "\n\n".join(native_parts).strip()
+            if native_text:
+                return {
+                    "text": native_text,
+                    "total_pages": len(pdf_reader.pages),
+                    "successful_pages": len(native_parts),
+                    "processing_time": time.time() - start_time,
+                    "char_count": len(native_text),
+                    "ocr_model": "pypdf2",
+                }
+        except Exception:
+            pass
+
+    images = render_input_to_images(file_bytes, extension)
     total_pages = len(images)
     parts = []
     successful_pages = 0
@@ -116,19 +155,21 @@ def extract_with_model_sync(
         }
 
     if model == "paddleocr":
-        reader = build_paddleocr_reader("korean")
+        image_exts = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff", ".gif"}
+        use_custom_for_image = extension in image_exts
+        reader = build_paddleocr_reader("korean", prefer_custom=use_custom_for_image)
 
         for idx, image in enumerate(images, start=1):
             try:
-                image_array = np.array(image)
-                result = reader.ocr(image_array)
+                image_bgr = np.array(image)[:, :, ::-1]
+                result = reader.ocr(image_bgr)
                 lines = _extract_lines_from_result(result)
                 page_text = "\n".join(lines).strip()
 
                 if not page_text:
                     prepared = preprocess_for_ocr(image)
-                    prepared_array = np.array(prepared)
-                    retry = reader.ocr(prepared_array)
+                    prepared_bgr = np.array(prepared.convert("RGB"))[:, :, ::-1]
+                    retry = reader.ocr(prepared_bgr)
                     retry_lines = _extract_lines_from_result(retry)
                     page_text = "\n".join(retry_lines).strip()
 

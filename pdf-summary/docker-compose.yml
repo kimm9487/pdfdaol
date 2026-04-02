@@ -91,6 +91,12 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       OCR_USE_GPU: "true"
       PADDLE_DEVICE: gpu:0
+      PADDLE_DET_DB_THRESH: "0.3"
+      PADDLE_DET_DB_BOX_THRESH: "0.6"
+      PADDLE_DET_DB_UNCLIP_RATIO: "1.5"
+      PADDLE_DET_DB_SCORE_MODE: "fast"
+      PADDLE_DET_LIMIT_SIDE_LEN: "960"
+      PADDLE_CUSTOM_MODEL_DIR: /app/paddletrain
       USE_REDIS: "true"
       REDIS_URL: "redis://redis:6379/0"
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
@@ -105,6 +111,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - ./paddletrain:/app/paddletrain:ro
 
   websocket:
     build: ./backend  # 💡 [추가] 이미지 빌드 컨텍스트 명시
@@ -173,6 +180,12 @@ services:
       OCR_USE_GPU: "true"
       PADDLE_DEVICE: gpu:0
       PADDLE_DETERMINISTIC: "1"
+      PADDLE_DET_DB_THRESH: "0.3"
+      PADDLE_DET_DB_BOX_THRESH: "0.6"
+      PADDLE_DET_DB_UNCLIP_RATIO: "1.5"
+      PADDLE_DET_DB_SCORE_MODE: "fast"
+      PADDLE_DET_LIMIT_SIDE_LEN: "960"
+      PADDLE_CUSTOM_MODEL_DIR: /app/paddletrain
     deploy:
       resources:
         reservations:
@@ -182,6 +195,7 @@ services:
               capabilities: [gpu]
     volumes:
       - ./backend:/app
+      - ./paddletrain:/app/paddletrain:ro
 
   worker_llm:
     build: ./backend  # 💡 [추가]
