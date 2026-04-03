@@ -4,11 +4,13 @@ import os
 from fastapi import HTTPException
 
 # ── tessdata 경로 설정 ─────────────────────────────────────────────────────
-# 현재 파일: backend/services/ocr/tesseract_extractor.py
-# tessdata:  backend/services/tessdata/
+# 현재 파일: pdf-summary/backend/services/ocr/tesseract_extractor.py
+# tessdata:  pdf-summary/tessdata/
 _CURRENT_DIR  = os.path.dirname(os.path.abspath(__file__))   # .../ocr/
 _SERVICES_DIR = os.path.dirname(_CURRENT_DIR)                 # .../services/
-_TESSDATA_DIR = os.path.join(_SERVICES_DIR, "tessdata")
+_BACKEND_DIR  = os.path.dirname(_SERVICES_DIR)                # .../backend/
+_PROJECT_DIR  = os.path.dirname(_BACKEND_DIR)                 # .../pdf-summary/
+_TESSDATA_DIR = os.path.join(_PROJECT_DIR, "tessdata")
 if os.path.isdir(_TESSDATA_DIR):
     os.environ["TESSDATA_PREFIX"] = _TESSDATA_DIR
 
