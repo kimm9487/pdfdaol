@@ -30,7 +30,7 @@ SUPPORTED_OCR_MODELS = {
     "tesseract": "Tesseract OCR (PDF + doc/docx/hwp)",
     "easyocr": "EasyOCR (PDF + doc/docx/hwp)",
     "paddleocr": "PaddleOCR (PDF + doc/docx/hwp)",
-    "pororo": "Pororo OCR - brainOCR (PDF + doc/docx/hwp)",
+    "pororo": "Pororo OCR (PDF + doc/docx/hwp)",
 }
 
 
