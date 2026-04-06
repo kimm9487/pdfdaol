@@ -1,5 +1,4 @@
 FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04 AS base
-#                              ^^^^^ runtime → devel 로 변경
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -23,24 +22,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python3 -m venv /opt/venv
 RUN /opt/venv/bin/pip install --upgrade pip setuptools wheel
 
-# 1. torch (CUDA 12.1 wheel)
+#  torch (CUDA 12.1 wheel)
 RUN /opt/venv/bin/pip install \
     torch==2.1.0 \
     torchvision==0.16.0 \
     --index-url https://download.pytorch.org/whl/cu121
 
-# 2. paddlepaddle-gpu (torch와 분리)
+# paddlepaddle-gpu (torch와 분리)
 RUN /opt/venv/bin/pip install paddlepaddle-gpu==2.6.1 \
     -f https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html
 
-# 3. easyocr (--no-deps로 torch 재설치 방지)
+#  easyocr (--no-deps로 torch 재설치 방지)
 RUN /opt/venv/bin/pip install easyocr==1.7.1 --no-deps && \
     /opt/venv/bin/pip install ninja python-bidi
 
-# 4. paddleocr (requirements.txt보다 먼저 → protobuf 고정 전에 의존성 풀기)
+#  paddleocr (requirements.txt보다 먼저  protobuf 고정 전에 의존성 풀기)
 RUN /opt/venv/bin/pip install paddleocr==2.7.3
 
-# 5. pororo OCR (yunwoong7 bundled build — pip install pororo는 torch==1.6.0 강제하므로 사용 불가)
+#  pororo OCR (yunwoong7 bundled build — pip install pororo는 torch==1.6.0 강제하므로 사용 불가)
 #    대신 소스에서 OCR 전용 패키지만 venv site-packages에 직접 복사
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 RUN git clone --depth 1 https://github.com/yunwoong7/korean_ocr_using_pororo.git /tmp/kor_pororo \
@@ -49,13 +48,11 @@ RUN git clone --depth 1 https://github.com/yunwoong7/korean_ocr_using_pororo.git
     && rm -rf /tmp/kor_pororo
 RUN /opt/venv/bin/pip install wget scikit-image
 
-# 6. 기본 의존성 (protobuf 버전 마지막에 고정)
 COPY requirements.txt ./
 RUN /opt/venv/bin/pip install -r requirements.txt
 
 # ──────────────────────────────────────────
 FROM base AS runtime
-#    ^^^^ devel base를 그대로 사용 (libcudnn.so 완전히 포함됨)
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \

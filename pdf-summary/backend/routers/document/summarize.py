@@ -37,6 +37,7 @@ MAX_CHAT_DOCUMENTS = 5
 CHAT_DOCUMENT_PATTERN = r"^\[문서\s*\d+\s*:\s*.+?\]\s*$"
 _chat_cancel_events = {}
 _chat_cancel_lock = asyncio.Lock()
+SSE_HEARTBEAT_SECONDS = max(5.0, float(os.getenv("SSE_HEARTBEAT_SECONDS", "15")))
 
 
 def _stringify_detail(detail, fallback: str = "오류가 발생했습니다.") -> str:
@@ -467,6 +468,9 @@ async def extract_pdf(
                     "ocr_model": "pypdf2",
                 }
             else:
+                yield _sse({"type": "start", "total_pages": 0, "ocr_mode": True})
+                await asyncio.sleep(0)
+
                 # [osj | 2026-03-24] run_in_executor로 OCR을 별도 스레드에서 실행하고
                 # asyncio.Queue를 통해 페이지 완료 시마다 ocr_progress SSE를 실시간 전송
                 # 총 페이지 수를 먼저 파악하기 위해 PDF를 렌더링 (이미지는 OCR 단계에서 재사용)
@@ -479,7 +483,7 @@ async def extract_pdf(
                 except Exception:
                     _total = 0
 
-                yield _sse({"type": "start", "total_pages": _total, "ocr_mode": True})
+                yield _sse({"type": "progress_meta", "total_pages": _total, "ocr_mode": True})
                 await asyncio.sleep(0)
 
                 loop = asyncio.get_event_loop()
@@ -503,12 +507,16 @@ async def extract_pdf(
 
                 extraction_result = None
                 ocr_error = None
+                last_heartbeat = time.monotonic()
                 while not ocr_future.done() or not progress_queue.empty():
                     try:
                         prog = progress_queue.get_nowait()
                         yield _sse({"type": "ocr_progress", "page": prog["page"], "total": prog["total"]})
+                        last_heartbeat = time.monotonic()
                     except asyncio.QueueEmpty:
-                        pass
+                        if time.monotonic() - last_heartbeat >= SSE_HEARTBEAT_SECONDS:
+                            yield _sse({"type": "heartbeat", "stage": "ocr"})
+                            last_heartbeat = time.monotonic()
                     await asyncio.sleep(0.05)
 
                 try:
@@ -714,7 +722,11 @@ async def summarize_extracted_document(
         summary_start = time.time()
 
         try:
+            yield _sse({"type": "start", "stage": "summary"})
             async for token in summarize_text_stream(doc_extracted_text, model=model):
+                if token == "":
+                    yield _sse({"type": "heartbeat", "stage": "summary"})
+                    continue
                 collected.append(token)
                 yield _sse({"type": "token", "text": token})
         except Exception as exc:

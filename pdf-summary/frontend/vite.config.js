@@ -67,6 +67,9 @@ export default defineConfig(({ mode }) => {
               target: backendTarget,
               changeOrigin: true,
               secure: false,
+              timeout: 0,
+              proxyTimeout: 0,
+              agent: new http.Agent({ keepAlive: true }),
             },
           },
         }

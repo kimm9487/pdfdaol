@@ -145,6 +145,7 @@ const ChatSummary = () => {
   const [waitingFirstToken, setWaitingFirstToken] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const dragDepthRef = useRef(0);
+  const messagesContainerRef = useRef(null);
 
   useEffect(() => {
     const loadModels = async () => {
@@ -231,6 +232,13 @@ const ChatSummary = () => {
       window.removeEventListener("drop", handleDrop);
     };
   }, [extractedDocs.length, isGlobalDragging]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    container.scrollTop = container.scrollHeight;
+  }, [messages, loadingChat, waitingFirstToken, isStreaming]);
 
   const combinedDocumentText = useMemo(() => buildCombinedDocumentText(extractedDocs), [extractedDocs]);
   const isReadyForChat = useMemo(() => combinedDocumentText.trim().length > 0, [combinedDocumentText]);
@@ -612,7 +620,7 @@ const ChatSummary = () => {
       </aside>
 
       <section className="chat-window">
-        <div className="messages">
+        <div className="messages" ref={messagesContainerRef}>
           {messages.map((msg, idx) => (
             <div key={`${msg.role}-${idx}`} className={`bubble ${msg.role}`}>
               {msg.content}

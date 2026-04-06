@@ -4,6 +4,7 @@ import hashlib
 import json
 import httpx
 import asyncio
+from collections import Counter
 from fastapi import HTTPException
 from urllib.parse import urlparse
 from typing import AsyncIterator, List, Optional, Tuple
@@ -32,6 +33,27 @@ CHAT_NUM_PREDICT = int(os.getenv("CHAT_NUM_PREDICT", "800"))
 CHAT_REPEAT_PENALTY = float(os.getenv("CHAT_REPEAT_PENALTY", "1.1"))
 SUMMARY_MAX_CONCURRENCY = max(1, int(os.getenv("SUMMARY_MAX_CONCURRENCY", "3")))
 RAG_EMBED_MAX_CONCURRENCY = max(1, int(os.getenv("RAG_EMBED_MAX_CONCURRENCY", "4")))
+OLLAMA_CONNECT_TIMEOUT = float(os.getenv("OLLAMA_CONNECT_TIMEOUT", "30"))
+OLLAMA_WRITE_TIMEOUT = float(os.getenv("OLLAMA_WRITE_TIMEOUT", "300"))
+OLLAMA_POOL_TIMEOUT = float(os.getenv("OLLAMA_POOL_TIMEOUT", "300"))
+OLLAMA_SUMMARY_READ_TIMEOUT = float(os.getenv("OLLAMA_SUMMARY_READ_TIMEOUT", "1800"))
+SUMMARY_STREAM_HEARTBEAT_SECONDS = max(
+    5.0,
+    float(os.getenv("SUMMARY_STREAM_HEARTBEAT_SECONDS", "15")),
+)
+SUMMARY_NUM_CTX = int(os.getenv("SUMMARY_NUM_CTX", "3072"))
+SUMMARY_NUM_PREDICT = int(os.getenv("SUMMARY_NUM_PREDICT", "512"))
+SUMMARY_STREAM_NUM_PREDICT = int(os.getenv("SUMMARY_STREAM_NUM_PREDICT", "640"))
+SUMMARY_FAST_MODE = os.getenv("SUMMARY_FAST_MODE", "false").strip().lower() == "true"
+SUMMARY_FAST_MAX_CHARS = max(2000, int(os.getenv("SUMMARY_FAST_MAX_CHARS", "18000")))
+SUMMARY_FAST_CHUNK_SIZE = max(800, int(os.getenv("SUMMARY_FAST_CHUNK_SIZE", "1800")))
+SUMMARY_FAST_CHUNK_OVERLAP = max(50, int(os.getenv("SUMMARY_FAST_CHUNK_OVERLAP", "120")))
+SUMMARY_FAST_CHUNK_LIMIT = max(2, int(os.getenv("SUMMARY_FAST_CHUNK_LIMIT", "6")))
+SUMMARY_FAST_SKIP_REDUCE = os.getenv("SUMMARY_FAST_SKIP_REDUCE", "true").strip().lower() == "true"
+SUMMARY_SOURCE_MAX_CHARS = max(10000, int(os.getenv("SUMMARY_SOURCE_MAX_CHARS", "80000")))
+SUMMARY_SOURCE_DROP_REPEATED_SHORT_LINES = (
+    os.getenv("SUMMARY_SOURCE_DROP_REPEATED_SHORT_LINES", "true").strip().lower() == "true"
+)
 # 문서 입력 최대 글자 수: (num_ctx - 프롬프트 오버헤드 ~1000토큰) * 1.5 chars/token, 최소 2000자
 _CHAT_INPUT_MAX_CHARS = max(2000, int((CHAT_NUM_CTX - 1000) * 1.5))
 # 카테고리 분류용 본문 미리보기 길이(키워드·LLM 입력만; DB의 extracted_text 전체는 그대로 유지)
@@ -110,6 +132,99 @@ def _split_text_for_summary(text: str, chunk_size: int = 1200, overlap: int = 15
         start = next_start
 
     return chunks
+
+
+def _build_ollama_timeout(read_timeout: Optional[float] = None) -> httpx.Timeout:
+    resolved_read_timeout = OLLAMA_SUMMARY_READ_TIMEOUT if read_timeout is None else read_timeout
+    return httpx.Timeout(
+        connect=OLLAMA_CONNECT_TIMEOUT,
+        read=resolved_read_timeout,
+        write=OLLAMA_WRITE_TIMEOUT,
+        pool=OLLAMA_POOL_TIMEOUT,
+    )
+
+
+def _sample_text_for_fast_summary(text: str, max_chars: int) -> str:
+    safe_text = (text or "").strip()
+    if len(safe_text) <= max_chars:
+        return safe_text
+
+    head_size = int(max_chars * 0.65)
+    tail_size = max_chars - head_size
+    head = safe_text[:head_size]
+    tail = safe_text[-tail_size:]
+    return f"{head}\n\n[중간 내용 생략]\n\n{tail}"
+
+
+def _select_representative_chunks(chunks: List[str], limit: int) -> List[str]:
+    if len(chunks) <= limit:
+        return chunks
+
+    if limit <= 1:
+        return [chunks[0]]
+
+    last = len(chunks) - 1
+    selected = []
+    used_indices = set()
+    for i in range(limit):
+        idx = round(i * last / (limit - 1))
+        if idx in used_indices:
+            continue
+        used_indices.add(idx)
+        selected.append(chunks[idx])
+    return selected
+
+
+def _prepare_summary_source_text(text: str) -> str:
+    """
+    OCR 원문에서 반복 헤더/풋터, 페이지 표식, 연속 중복 라인을 줄여
+    실제 요약에 투입되는 텍스트 부피를 낮춥니다.
+    """
+    safe_text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    if not safe_text.strip():
+        return ""
+
+    page_marker_pattern = re.compile(r"^(?:page|페이지)?\s*\d+\s*(?:/\s*\d+)?$", re.IGNORECASE)
+    normalized_lines: List[str] = []
+    for raw in safe_text.split("\n"):
+        line = re.sub(r"\s+", " ", (raw or "")).strip()
+        if not line:
+            continue
+        if page_marker_pattern.match(line):
+            continue
+        normalized_lines.append(line)
+
+    if not normalized_lines:
+        return ""
+
+    # 같은 줄이 연속 반복되는 OCR 잡음을 줄입니다.
+    deduped_lines: List[str] = []
+    prev_line = None
+    repeat_count = 0
+    for line in normalized_lines:
+        if line == prev_line:
+            repeat_count += 1
+            if repeat_count >= 2:
+                continue
+        else:
+            prev_line = line
+            repeat_count = 0
+        deduped_lines.append(line)
+
+    cleaned_lines = deduped_lines
+    if SUMMARY_SOURCE_DROP_REPEATED_SHORT_LINES:
+        line_counts = Counter(deduped_lines)
+        cleaned_lines = []
+        for line in deduped_lines:
+            # 공문 반복 헤더/푸터처럼 짧은 반복 줄은 제거
+            if len(line) <= 42 and line_counts[line] >= 8:
+                continue
+            cleaned_lines.append(line)
+
+    prepared = "\n".join(cleaned_lines).strip()
+    if len(prepared) > SUMMARY_SOURCE_MAX_CHARS:
+        prepared = _sample_text_for_fast_summary(prepared, SUMMARY_SOURCE_MAX_CHARS)
+    return prepared
 
 
 def _split_text_with_progress_guard(
@@ -618,7 +733,19 @@ async def summarize_long_text(text: str, model: str) -> str:
     긴 문서를 청크 단위로 나누어 요약 (map-reduce 방식)
     """
 
-    chunks = _split_text_for_summary(text)
+    source_text = _prepare_summary_source_text(text)
+
+    if SUMMARY_FAST_MODE:
+        sampled = _sample_text_for_fast_summary(source_text, SUMMARY_FAST_MAX_CHARS)
+        chunks = _split_text_with_progress_guard(
+            sampled,
+            chunk_size=SUMMARY_FAST_CHUNK_SIZE,
+            overlap=SUMMARY_FAST_CHUNK_OVERLAP,
+        )
+        chunks = _select_representative_chunks(chunks, SUMMARY_FAST_CHUNK_LIMIT)
+    else:
+        chunks = _split_text_for_summary(source_text)
+
     if not chunks:
         return ""
 
@@ -633,16 +760,21 @@ async def summarize_long_text(text: str, model: str) -> str:
 
     combined = "\n".join(partial_summaries)
 
+    if SUMMARY_FAST_MODE and SUMMARY_FAST_SKIP_REDUCE:
+        # 초고속 모드: 최종 reduce 단계까지 생략해 지연을 크게 줄인다.
+        return combined[:6000].strip()
+
     final_summary = await summarize_text(combined, model)
 
     return final_summary
 
 async def summarize_text(text: str, model: str = DEFAULT_MODEL) -> str:
     MAX_CHARS = 8000
+    source_text = _prepare_summary_source_text(text)
 
     # 🔥 기존 cut 제거 → 청크 기반 요약으로 변경
-    if len(text) > MAX_CHARS:
-        return await summarize_long_text(text, model)
+    if len(source_text) > MAX_CHARS:
+        return await summarize_long_text(source_text, model)
 
     prompt = f"""다음 PDF 문서 내용을 한국어로 명확하고 간결하게 요약해줘.
 
@@ -652,13 +784,13 @@ async def summarize_text(text: str, model: str = DEFAULT_MODEL) -> str:
 3. 중요 포인트 3~5가지 (bullet point)
 
 --- 문서 내용 ---
-{text}
+{source_text}
 ---
 
 위 내용을 위 형식에 맞게 요약해줘."""
 
     try:
-        async with httpx.AsyncClient(timeout=600.0) as client:
+        async with httpx.AsyncClient(timeout=_build_ollama_timeout()) as client:
             response = await client.post(
                 f"{OLLAMA_BASE_URL}/api/generate",
                 json={
@@ -667,6 +799,9 @@ async def summarize_text(text: str, model: str = DEFAULT_MODEL) -> str:
                     "options": {
                         "temperature": CHAT_TEMPERATURE,
                         "top_p": CHAT_TOP_P,
+                        "num_ctx": SUMMARY_NUM_CTX,
+                        "num_predict": SUMMARY_NUM_PREDICT,
+                        "repeat_penalty": CHAT_REPEAT_PENALTY,
                     },
                     "stream": False,
                 }   
@@ -695,9 +830,22 @@ async def summarize_text(text: str, model: str = DEFAULT_MODEL) -> str:
 async def summarize_text_stream(text: str, model: str = DEFAULT_MODEL) -> AsyncIterator[str]:
     """Ollama 스트리밍 응답을 토큰 단위 문자열로 반환합니다."""
     MAX_CHARS = 8000
-    if len(text) > MAX_CHARS:
-        result = await summarize_long_text(text, model)
-        yield result
+    source_text = _prepare_summary_source_text(text)
+    if len(source_text) > MAX_CHARS:
+        summary_task = asyncio.create_task(summarize_long_text(source_text, model))
+        try:
+            while True:
+                done, _ = await asyncio.wait(
+                    {summary_task},
+                    timeout=SUMMARY_STREAM_HEARTBEAT_SECONDS,
+                )
+                if summary_task in done:
+                    yield await summary_task
+                    break
+                yield ""
+        finally:
+            if not summary_task.done():
+                summary_task.cancel()
         return
 
     prompt = f"""다음 PDF 문서 내용을 한국어로 명확하고 간결하게 요약해줘.
@@ -708,13 +856,13 @@ async def summarize_text_stream(text: str, model: str = DEFAULT_MODEL) -> AsyncI
 3. 중요 포인트 3~5가지 (bullet point)
 
 --- 문서 내용 ---
-{text}
+{source_text}
 ---
 
 위 내용을 위 형식에 맞게 요약해줘."""
 
     try:
-        async with httpx.AsyncClient(timeout=600.0) as client:
+        async with httpx.AsyncClient(timeout=_build_ollama_timeout()) as client:
             async with client.stream(
                 "POST",
                 f"{OLLAMA_BASE_URL}/api/generate",
@@ -723,9 +871,9 @@ async def summarize_text_stream(text: str, model: str = DEFAULT_MODEL) -> AsyncI
                     "prompt": prompt,
                     "stream": True,
                     # [속도 최적화 2026-03-19] 컨텍스트 크기 축소 + 최대 토큰 제한 → LLM 추론 속도 향상
-                    "num_ctx": 4096,       # 기본값 ~8192보다 작게 설정
-                    "num_predict": 1024,  # 요약 출력 토큰 상한
-                    "repeat_penalty": 1.1, # 반복 패널티 줄여 속도 향상
+                    "num_ctx": SUMMARY_NUM_CTX,
+                    "num_predict": SUMMARY_STREAM_NUM_PREDICT,
+                    "repeat_penalty": CHAT_REPEAT_PENALTY,
                 },
             ) as response:
                 if response.status_code != 200:

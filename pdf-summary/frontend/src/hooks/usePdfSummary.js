@@ -404,6 +404,7 @@ export const usePdfSummary = () => {
       let buffer = "";
       let accumulatedText = "";
       let modelUsed = selectedModel;
+      let finalSummaryFromDone = "";
 
       // [속도 최적화 2026-03-19] 토큰마다 setState 호출 대신 30ms 배치 업데이트
       // 리렌더링 횟수를 최대 33회/초로 제한 → 렌더링 부하 감소 + 화면 더 부드럽게
@@ -438,6 +439,7 @@ export const usePdfSummary = () => {
               accumulatedText += event.text || ""; // 인터벌이 setState 처리
             } else if (event.type === "done") {
               modelUsed = event.model_used || selectedModel;
+              finalSummaryFromDone = (event.summary || "").trim();
             } else if (event.type === "error") {
               setStatus({
                 type: "error",
@@ -454,16 +456,25 @@ export const usePdfSummary = () => {
         clearInterval(flushInterval);
       }
 
-      if (accumulatedText) {
+      const finalSummary = (accumulatedText || "").trim() || finalSummaryFromDone;
+
+      if (finalSummary) {
         setResult((prev) => ({
           ...prev,
-          summary: accumulatedText,
+          summary: finalSummary,
           model_used: modelUsed,
         }));
+      } else {
+        setStatus({
+          type: "error",
+          msg: "요약 완료 이벤트를 받았지만 본문이 비어 있습니다. 다시 시도해주세요.",
+        });
       }
       setStreamingSummary("");
-      setStatus({ type: "", msg: "" });
-      toast.success("AI 요약 완료!");
+      if (finalSummary) {
+        setStatus({ type: "", msg: "" });
+        toast.success("AI 요약 완료!");
+      }
     } catch (err) {
       console.error("요약 오류:", err);
       setStatus({
