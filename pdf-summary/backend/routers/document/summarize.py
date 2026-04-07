@@ -10,7 +10,7 @@ import datetime
 import base64
 import os
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from celery.result import AsyncResult
 import PyPDF2
@@ -75,13 +75,14 @@ def _validate_chat_document_limit(document_text: str):
 
 
 class ChatSummarizeRequest(BaseModel):
-    document_text: str
+    document_text: Optional[str] = None  # 문서가 없으면 일반 대화 모드
     instruction: str
     model: str = "phi3:mini"
     user_id: Optional[int] = None
     use_rag: bool = True
     use_lora: bool = False
     request_id: Optional[str] = None
+    conversation_history: List[Dict[str, str]] = []  # [{"role": "user/assistant", "content": "..."}]
 
 
 class ChatCancelRequest(BaseModel):
@@ -99,17 +100,17 @@ def _chat_cancel_key(user_id: Optional[int], request_id: str) -> str:
 async def chat_summarize(request: ChatSummarizeRequest):
     """사용자 지시 기반 대화형 요약 응답을 반환합니다."""
     text = (request.document_text or "").strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="문서 텍스트가 비어있습니다.")
-    _validate_chat_document_limit(text)
+    if text:
+        _validate_chat_document_limit(text)
 
     answer = await summarize_with_instruction(
-        text=text,
+        text=text,  # 빈 문자열이면 문서 없이 처리
         instruction=request.instruction,
         model=request.model,
         user_scope=_build_chat_scope(request.user_id),
         use_rag=request.use_rag,
         use_lora=request.use_lora,
+        conversation_history=request.conversation_history,
     )
 
     model_used = request.model
@@ -128,9 +129,8 @@ async def chat_summarize(request: ChatSummarizeRequest):
 async def chat_summarize_stream(request: ChatSummarizeRequest):
     """사용자 지시 기반 대화형 요약 응답을 SSE로 실시간 전송합니다."""
     text = (request.document_text or "").strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="문서 텍스트가 비어있습니다.")
-    _validate_chat_document_limit(text)
+    if text:
+        _validate_chat_document_limit(text)
 
     model_used = request.model
     if request.use_lora:
@@ -158,6 +158,7 @@ async def chat_summarize_stream(request: ChatSummarizeRequest):
                 user_scope=_build_chat_scope(request.user_id),
                 use_rag=request.use_rag,
                 use_lora=request.use_lora,
+                conversation_history=request.conversation_history,
                 cancel_event=cancel_event,
             ):
                 if cancel_event and cancel_event.is_set():

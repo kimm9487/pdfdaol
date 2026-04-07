@@ -79,6 +79,8 @@ const normalizeErrorMessage = (detail, fallback = "오류가 발생했습니다.
   return fallback;
 };
 
+const createDocId = () => `doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 const buildCombinedDocumentText = (docs) => {
   if (!Array.isArray(docs) || docs.length === 0) return "";
   return docs
@@ -135,6 +137,8 @@ const ChatSummary = () => {
   ]);
 
   const [extractedDocs, setExtractedDocs] = useState([]);
+  const [activeDocIds, setActiveDocIds] = useState([]);
+  const [conversationHistoryBySelection, setConversationHistoryBySelection] = useState({});
   const [input, setInput] = useState("");
   const [loadingExtract, setLoadingExtract] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
@@ -240,8 +244,23 @@ const ChatSummary = () => {
     container.scrollTop = container.scrollHeight;
   }, [messages, loadingChat, waitingFirstToken, isStreaming]);
 
-  const combinedDocumentText = useMemo(() => buildCombinedDocumentText(extractedDocs), [extractedDocs]);
-  const isReadyForChat = useMemo(() => combinedDocumentText.trim().length > 0, [combinedDocumentText]);
+  const activeDocuments = useMemo(
+    () => extractedDocs.filter((doc) => activeDocIds.includes(doc.id)),
+    [extractedDocs, activeDocIds]
+  );
+  const activeSelectionKey = useMemo(() => {
+    if (!activeDocIds.length) return "";
+    return [...activeDocIds].sort().join("::");
+  }, [activeDocIds]);
+  const activeDocumentText = useMemo(
+    () => buildCombinedDocumentText(activeDocuments).trim(),
+    [activeDocuments]
+  );
+  const activeConversationHistory = useMemo(() => {
+    if (!activeSelectionKey) return [];
+    return conversationHistoryBySelection[activeSelectionKey] || [];
+  }, [conversationHistoryBySelection, activeSelectionKey]);
+  const isReadyForChat = useMemo(() => activeDocumentText.length > 0, [activeDocumentText]);
 
   const appendMessage = (role, content, meta = null) => {
     setMessages((prev) => [...prev, { role, content, meta }]);
@@ -273,6 +292,15 @@ const ChatSummary = () => {
       ...prev,
       [messageKey]: !prev[messageKey],
     }));
+  };
+
+  const toggleActiveDoc = (docId) => {
+    setActiveDocIds((prev) => {
+      if (prev.includes(docId)) {
+        return prev.filter((id) => id !== docId);
+      }
+      return [...prev, docId];
+    });
   };
 
   const handleExtract = async () => {
@@ -322,7 +350,9 @@ const ChatSummary = () => {
         }
 
         const extracted = (data.extracted_text || "").trim();
+        const docId = createDocId();
         extractedBatch.push({
+          id: docId,
           fileName: data.filename || file.name,
           text: extracted,
         });
@@ -336,6 +366,15 @@ const ChatSummary = () => {
 
       if (extractedBatch.length > 0) {
         setExtractedDocs((prev) => [...prev, ...extractedBatch]);
+        setActiveDocIds((prev) => {
+          const next = [...prev];
+          extractedBatch.forEach((doc) => {
+            if (!next.includes(doc.id)) {
+              next.push(doc.id);
+            }
+          });
+          return next;
+        });
       }
       setSelectedFiles([]);
     } catch (error) {
@@ -353,8 +392,8 @@ const ChatSummary = () => {
     appendMessage("user", instruction);
     setInput("");
 
-    if (!isReadyForChat) {
-      appendMessage("assistant", "먼저 왼쪽에서 파일을 추출해 주세요.");
+    if (!isReadyForChat || activeDocuments.length === 0) {
+      appendMessage("assistant", "먼저 문서를 추출하고 질문할 문서를 1개 이상 선택해 주세요.");
       return;
     }
 
@@ -363,6 +402,7 @@ const ChatSummary = () => {
     setIsStreaming(false);
     try {
       appendMessage("assistant", "");
+      let streamedAnswer = "";
 
       const response = await fetch(`${API_BASE}/documents/chat-summarize/stream`, {
         method: "POST",
@@ -370,12 +410,13 @@ const ChatSummary = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          document_text: combinedDocumentText,
+          document_text: activeDocumentText,
           instruction,
           model: selectedModel,
           user_id: userDbId ? parseInt(userDbId, 10) : null,
           use_rag: useRag,
           use_lora: useLora,
+          conversation_history: activeConversationHistory,
         }),
       });
       if (!response.ok) {
@@ -414,6 +455,7 @@ const ChatSummary = () => {
 
       const applySsePayload = (payload) => {
         if (payload.type === "token" && payload.text) {
+          streamedAnswer += payload.text;
           setWaitingFirstToken(false);
           setIsStreaming(true);
           appendAssistantToken(payload.text);
@@ -423,6 +465,23 @@ const ChatSummary = () => {
         if (payload.type === "done") {
           setWaitingFirstToken(false);
           setIsStreaming(false);
+          const resolvedAnswer = (payload.answer || streamedAnswer || "").trim();
+
+          if (resolvedAnswer && activeSelectionKey) {
+            setConversationHistoryBySelection((prev) => {
+              const previousHistory = prev[activeSelectionKey] || [];
+              const nextHistory = [
+                ...previousHistory,
+                { role: "user", content: instruction },
+                { role: "assistant", content: resolvedAnswer },
+              ].slice(-20);
+              return {
+                ...prev,
+                [activeSelectionKey]: nextHistory,
+              };
+            });
+          }
+
           if (payload.answer) {
             setMessages((prev) => {
               const next = [...prev];
@@ -617,9 +676,35 @@ const ChatSummary = () => {
         <button type="button" className="primary-btn" onClick={handleExtract} disabled={loadingExtract}>
           {loadingExtract ? "추출 중..." : "문서 텍스트 추출"}
         </button>
+
+        {extractedDocs.length > 0 && (
+          <div className="doc-switcher">
+            <div className="doc-switcher-title">질문할 문서 선택</div>
+            {extractedDocs.map((doc, index) => {
+              const isActive = activeDocIds.includes(doc.id);
+              return (
+                <button
+                  key={doc.id || `${doc.fileName}-${index}`}
+                  type="button"
+                  className={`doc-switcher-item ${isActive ? "active" : ""}`}
+                  onClick={() => toggleActiveDoc(doc.id)}
+                >
+                  <span className="doc-switcher-name">{doc.fileName || `문서 ${index + 1}`}</span>
+                  {isActive && <span className="doc-switcher-badge">선택됨</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </aside>
 
       <section className="chat-window">
+        <div className="active-doc-banner">
+          {activeDocuments.length > 0
+            ? `현재 질문 대상 문서: ${activeDocuments.map((doc) => doc.fileName).join(", ")}`
+            : "현재 질문 대상 문서가 없습니다. 왼쪽에서 문서를 선택해 주세요."}
+        </div>
+
         <div className="messages" ref={messagesContainerRef}>
           {messages.map((msg, idx) => (
             <div key={`${msg.role}-${idx}`} className={`bubble ${msg.role}`}>
@@ -668,7 +753,11 @@ const ChatSummary = () => {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="예: 핵심 포인트 3개만 bullet로 정리해줘"
+            placeholder={
+              activeDocuments.length > 0
+                ? `${activeDocuments.map((doc) => doc.fileName).join(", ")}에 대해 질문해 주세요`
+                : "예: 핵심 포인트 3개만 bullet로 정리해줘"
+            }
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();

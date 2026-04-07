@@ -7,7 +7,7 @@ import asyncio
 from collections import Counter
 from fastapi import HTTPException
 from urllib.parse import urlparse
-from typing import AsyncIterator, List, Optional, Tuple
+from typing import AsyncIterator, List, Optional, Tuple, Dict
 
 try:
     import chromadb  
@@ -81,7 +81,17 @@ DOCUMENT_TASK_KEYWORDS = [
 ]
 
 DOCUMENT_FOCUS_KEYWORDS = [
-    "문서", "파일", "pdf", "doc", "docx", "hwpx", "요약", "정리", "추출", "원문", "본문", "비교", "차이", "핵심", "근거",
+    # 일반 문서 관련
+    "문서", "파일", "pdf", "doc", "docx", "hwpx", "요약", "정리", "추출", "원문", "본문", "비교", "차이", "핵심", "근거", "포인트", "핵심포인트",
+    # 법령·규정 + 법안 특화
+    "법령", "법률", "시행령", "시행규칙", "훈령", "예규", "행정규칙", "조례", "고시", "법규", "법안", "의안", "조항", "개정", "제정",
+    "발의자", "대표 발의자", "발의", "공동발의자", "입법", "제출자", "원안", "수정안", "대안", "대안법", "주요 내용", "요지", "제출일", "의원", "국회",
+    # 행정·공문
+    "공문", "시달", "협조요청", "협조", "회신", "통지", "결재", "품의", "유통", "대외", "기관 간",
+    # 보고·계획
+    "업무보고", "검토보고", "실적", "현황", "통계", "분석", "평가", "사업계획", "추진계획", "연간", "월간", "분기",
+    # 재정·계약
+    "예산", "결산", "입찰", "계약", "낙찰", "지출", "집행", "용역", "구매", "발주", "회계", "재무", "조달",
 ]
 
 COMPARE_REQUEST_KEYWORDS = [
@@ -352,6 +362,7 @@ def _build_chat_prompts(
     text: str,
     rag_block: str,
     is_document_focused: bool,
+    conversation_history: Optional[List[dict]] = None,
 ) -> Tuple[str, str]:
     if is_document_focused:
         is_code_intent = _is_code_request(clean_instruction)
@@ -449,7 +460,25 @@ def _build_chat_prompts(
 - 요청하지 않은 장황한 설명은 생략하고 1~4문장으로 간결하게 답하세요.
 - 자연스러운 한국어 존댓말로 답변하세요.
 - 무조건 한국어로 답변하세요."""
-    user_prompt = clean_instruction
+    
+    # 대화 히스토리 포함
+    history_text = ""
+    if conversation_history:
+        history_parts = []
+        for entry in conversation_history:
+            role = str(entry.get("role", "")).strip().lower()
+            content = str(entry.get("content", "")).strip()
+            if not content:
+                continue
+            if role == "user":
+                history_parts.append(f"사용자: {content}")
+            elif role in ("assistant", "ai"):
+                history_parts.append(f"어시스턴트: {content}")
+        
+        if history_parts:
+            history_text = "[이전 대화]\n" + "\n".join(history_parts) + "\n\n"
+    
+    user_prompt = history_text + f"[현재 질문]\n{clean_instruction}"
     return system_prompt, user_prompt
 
 
@@ -709,7 +738,15 @@ async def build_rag_context(document_text: str, query: str, user_scope: str, top
         return "\n\n".join(f"[문맥 {i+1}] {c}" for i, c in enumerate(fallback_docs)), len(fallback_docs)
 
     try:
-        where_filter = _build_hybrid_where(owner_id)
+        # 현재 문서의 fingerprint만 검색하도록 필터 지정
+        # 새로운 문서가 업로드되면 이전 문서의 임베딩이 우선되지 않도록 방지
+        base_filter = _build_hybrid_where(owner_id)
+        where_filter = {
+            "$and": [
+                base_filter,
+                {"doc_fingerprint": {"$eq": fingerprint}}
+            ]
+        }
         results = collection.query(
             query_embeddings=[query_emb],
             n_results=min(max(top_k, 1), len(ids)),
@@ -918,6 +955,7 @@ async def summarize_with_instruction(
     user_scope: str = "shared",
     use_rag: bool = True,
     use_lora: bool = False,
+    conversation_history: Optional[List[Dict[str, str]]] = None,
 ) -> str:
     """사용자 지시를 반영해 문서 텍스트를 요약/정리합니다."""
     MAX_CHARS = _CHAT_INPUT_MAX_CHARS
@@ -931,7 +969,7 @@ async def summarize_with_instruction(
     if _is_smalltalk_instruction(clean_instruction):
         return _smalltalk_response(clean_instruction)
 
-    is_document_focused = _is_document_focused_instruction(clean_instruction)
+    is_document_focused = _is_document_focused_instruction(clean_instruction) and bool(text.strip())
 
     selected_model = LORA_MODEL_NAME if use_lora else model
     if not selected_model:
@@ -959,6 +997,7 @@ async def summarize_with_instruction(
         text=text,
         rag_block=rag_block,
         is_document_focused=is_document_focused,
+        conversation_history=conversation_history,
     )
 
     try:
@@ -1017,6 +1056,7 @@ async def summarize_with_instruction_stream(
     user_scope: str = "shared",
     use_rag: bool = True,
     use_lora: bool = False,
+    conversation_history: Optional[List[Dict[str, str]]] = None,
     cancel_event: Optional[asyncio.Event] = None,
 ) -> AsyncIterator[str]:
     """사용자 지시 기반 대화형 요약을 토큰 스트리밍으로 반환합니다."""
@@ -1032,7 +1072,7 @@ async def summarize_with_instruction_stream(
         yield _smalltalk_response(clean_instruction)
         return
 
-    is_document_focused = _is_document_focused_instruction(clean_instruction)
+    is_document_focused = _is_document_focused_instruction(clean_instruction) and bool(text.strip())
 
     selected_model = LORA_MODEL_NAME if use_lora else model
     if not selected_model:
@@ -1060,6 +1100,7 @@ async def summarize_with_instruction_stream(
         text=text,
         rag_block=rag_block,
         is_document_focused=is_document_focused,
+        conversation_history=conversation_history,
     )
 
     try:

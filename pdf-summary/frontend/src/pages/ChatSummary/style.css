@@ -155,6 +155,59 @@
   cursor: not-allowed;
 }
 
+.doc-switcher {
+  margin-top: 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #f9fafb;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.doc-switcher-title {
+  font-size: 0.82rem;
+  color: #374151;
+  font-weight: 700;
+}
+
+.doc-switcher-item {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  padding: 8px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.doc-switcher-item.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.doc-switcher-name {
+  font-size: 0.84rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-switcher-badge {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+  background: #dbeafe;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
 .chat-window {
   background: #ffffff;
   border-radius: 14px;
@@ -164,6 +217,15 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+
+.active-doc-banner {
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #1f2937;
+  padding: 9px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .messages {
