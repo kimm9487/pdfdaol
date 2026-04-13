@@ -1,0 +1,22 @@
+# RAGAS RAG 평가용 추가 패키지
+# 설치: pip install -r ragas_eval_requirements.txt
+
+# RAGAS (0.2.x 기준; 0.1.x도 폴백 지원)
+ragas>=0.2.0
+
+# LangChain Ollama 통합 (최신 권장)
+langchain-ollama>=0.1.0
+
+# LangChain 커뮤니티 통합 (폴백용)
+langchain-community>=0.2.0
+langchain-core>=0.2.0
+
+# HuggingFace datasets (RAGAS 내부 사용)
+datasets>=2.18.0
+
+# 데이터 처리
+pandas>=2.0.0
+
+# (이미 requirements.txt 에 있으나 로컬 실행 시 필요)
+httpx>=0.28.0
+chromadb>=0.5.0
