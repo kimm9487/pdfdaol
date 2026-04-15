@@ -1,7 +1,7 @@
 import json
 from fastapi import APIRouter, Form, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from database import get_db, User, PdfDocument, UserSession, AdminActivityLog, log_admin_activity
+from database import get_db, User, PdfDocument, UserSession, AdminActivityLog, PaymentTransaction, log_admin_activity
 
 users_router = APIRouter(prefix="/users", tags=["Admin-Users"])
 
@@ -71,6 +71,11 @@ def delete_user(
             .filter(AdminActivityLog.admin_user_id == user_id)
             .delete(synchronize_session=False)
         )
+        deleted_payments = (
+            db.query(PaymentTransaction)
+            .filter(PaymentTransaction.user_id == user_id)
+            .delete(synchronize_session=False)
+        )
         deleted_docs = (
             db.query(PdfDocument)
             .filter(PdfDocument.user_id == user_id)
@@ -92,6 +97,7 @@ def delete_user(
                 "deleted_username": deleted_username,
                 "deleted_sessions": deleted_sessions,
                 "deleted_activity_logs": deleted_logs,
+                "deleted_payments": deleted_payments,
                 "deleted_documents": deleted_docs
             }),
             ip_address=request.client.host
@@ -103,6 +109,7 @@ def delete_user(
             "cleanup": {
                 "sessions": deleted_sessions,
                 "activity_logs": deleted_logs,
+                "payments": deleted_payments,
                 "documents": deleted_docs
             }
         }

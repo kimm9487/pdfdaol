@@ -59,6 +59,98 @@ export const useUserList = () => {
     );
   }, []);
 
+  const loadUserListData = useCallback(async () => {
+    try {
+      setLoading(true);
+      if (!validateLocalStorage()) {
+        handleLogout();
+        return false;
+      }
+
+      const userDbId = localStorage.getItem("userDbId");
+      const sessionToken = localStorage.getItem("session_token");
+
+      // 역할 갱신
+      const profileRes = await fetch(
+        buildApiUrl(`/auth/profile/${userDbId}`),
+        {
+          headers: { Authorization: `Bearer ${sessionToken}` },
+        },
+      );
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        localStorage.setItem("userRole", profileData.role || "");
+      }
+
+      // 문서 목록 가져오기
+      const docRes = await fetch(
+        buildApiUrl(`/api/admin/documents?viewer_user_id=${Number(userDbId) || 0}`),
+        {
+          headers: { Authorization: `Bearer ${sessionToken}` },
+        },
+      );
+
+      if (!docRes.ok) throw new Error(`문서 목록 오류: ${docRes.status}`);
+      const docResult = await docRes.json();
+
+      const mappedData = docResult.documents.map((doc) => {
+        const createdDate = doc.created_at ? new Date(doc.created_at) : null;
+        return {
+          id: Number(doc.id || 0),
+          userId: doc.user?.id ?? null,
+          username: doc.user?.username || "알수없음",
+          fullName: doc.user?.full_name || doc.user?.username || "알수없음",
+          datetime: createdDate
+            ? createdDate
+                .toLocaleString("ko-KR", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                })
+                .replace(/\. /g, "-")
+                .replace(" ", "\n")
+            : "날짜 없음",
+          filename: doc.filename || "파일명 없음",
+          model: doc.model_used || "gemma3:latest",
+          charCount: doc.char_count ? doc.char_count.toLocaleString() : "0",
+          status: "완료",
+          summary: doc.summary || "요약 내용이 없습니다.",
+          extracted_text: doc.extracted_text || "",
+          sortDate: createdDate,
+          created_at: doc.created_at,
+          isPublic: doc.is_public ?? true,
+          isImportant: doc.is_important ?? false,
+          isPaidByViewer: doc.is_paid_by_viewer ?? false,
+          requiresPayment: doc.requires_payment ?? false,
+          password: doc.password ?? null,
+          category: doc.category || "기타",
+        };
+      });
+      setData(mappedData);
+      setError(null);
+
+      // 모델 목록 가져오기
+      const modelRes = await fetch(buildApiUrl("/api/documents/models"), {
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      });
+      if (modelRes.ok) {
+        const modelResult = await modelRes.json();
+        if (modelResult.models?.length > 0) {
+          setAvailableModels(["전체 모델", ...new Set(modelResult.models)]);
+        }
+      }
+      return true;
+    } catch (err) {
+      setError(err.message || "데이터 불러오기 실패");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [handleLogout, validateLocalStorage]);
+
   useEffect(() => {
     const onPaymentMessage = (event) => {
       if (event.origin !== window.location.origin) return;
@@ -80,6 +172,8 @@ export const useUserList = () => {
         }
         setPaymentLoadingDocId(null);
         toast.success("결제가 완료되었습니다.");
+        // 결제 직후 서버에서 최신 문서 내용을 다시 받아와 새로고침 없이 바로 볼 수 있게 맞춥니다.
+        void loadUserListData();
       }
 
       if (payload.type === "kakaopay:failed") {
@@ -95,100 +189,12 @@ export const useUserList = () => {
 
     window.addEventListener("message", onPaymentMessage);
     return () => window.removeEventListener("message", onPaymentMessage);
-  }, []);
+  }, [loadUserListData]);
 
   // 데이터 로드
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        if (!validateLocalStorage()) {
-          handleLogout();
-          return;
-        }
-
-        const userDbId = localStorage.getItem("userDbId");
-        const sessionToken = localStorage.getItem("session_token");
-
-        // 역할 갱신
-        const profileRes = await fetch(
-          buildApiUrl(`/auth/profile/${userDbId}`),
-          {
-            headers: { Authorization: `Bearer ${sessionToken}` },
-          },
-        );
-        if (profileRes.ok) {
-          const profileData = await profileRes.json();
-          localStorage.setItem("userRole", profileData.role || "");
-        }
-
-        // 문서 목록 가져오기
-        const docRes = await fetch(
-          buildApiUrl(`/api/admin/documents?viewer_user_id=${Number(userDbId) || 0}`),
-          {
-          headers: { Authorization: `Bearer ${sessionToken}` },
-          },
-        );
-
-        if (!docRes.ok) throw new Error(`문서 목록 오류: ${docRes.status}`);
-        const docResult = await docRes.json();
-
-        const mappedData = docResult.documents.map((doc) => {
-          const createdDate = doc.created_at ? new Date(doc.created_at) : null;
-          return {
-            id: Number(doc.id || 0),
-            userId: doc.user?.id ?? null,
-            username: doc.user?.username || "알수없음",
-            fullName: doc.user?.full_name || doc.user?.username || "알수없음",
-            datetime: createdDate
-              ? createdDate
-                  .toLocaleString("ko-KR", {
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: false,
-                  })
-                  .replace(/\. /g, "-")
-                  .replace(" ", "\n")
-              : "날짜 없음",
-            filename: doc.filename || "파일명 없음",
-            model: doc.model_used || "gemma3:latest",
-            charCount: doc.char_count ? doc.char_count.toLocaleString() : "0",
-            status: "완료",
-            summary: doc.summary || "요약 내용이 없습니다.",
-            extracted_text: doc.extracted_text || "",
-            sortDate: createdDate,
-            created_at: doc.created_at,
-            isPublic: doc.is_public ?? true,
-            isImportant: doc.is_important ?? false,
-            isPaidByViewer: doc.is_paid_by_viewer ?? false,
-            requiresPayment: doc.requires_payment ?? false,
-            password: doc.password ?? null,
-            category: doc.category || "기타",
-          };
-        });
-        setData(mappedData);
-
-        // 모델 목록 가져오기
-        const modelRes = await fetch(buildApiUrl("/api/documents/models"), {
-          headers: { Authorization: `Bearer ${sessionToken}` },
-        });
-        if (modelRes.ok) {
-          const modelResult = await modelRes.json();
-          if (modelResult.models?.length > 0) {
-            setAvailableModels(["전체 모델", ...new Set(modelResult.models)]);
-          }
-        }
-      } catch (err) {
-        setError(err.message || "데이터 불러오기 실패");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [validateLocalStorage]);
+    void loadUserListData();
+  }, [loadUserListData]);
 
   // 권한 확인 함수
   const isMyDocument = useCallback(

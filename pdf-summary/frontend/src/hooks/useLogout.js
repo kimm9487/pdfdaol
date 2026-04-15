@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useRef } from "react";
+import { useRef, useCallback } from "react";
 import { buildApiUrl } from "../config/api";
 import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
 
@@ -15,7 +15,7 @@ export const useLogout = (setIsLoggedIn = null, options = {}) => {
   const { showAlert = true } = options;
   const isLoggingOutRef = useRef(false);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     if (isLoggingOutRef.current) {
       console.log("이미 로그아웃 처리 중입니다. 중복 호출을 무시합니다.");
       return;
@@ -95,7 +95,7 @@ export const useLogout = (setIsLoggedIn = null, options = {}) => {
       // 다음 로그인/로그아웃 사이클을 위해 잠금 해제
       isLoggingOutRef.current = false;
     }
-  };
+  }, [navigate, setIsLoggedIn, showAlert]);
 
   return handleLogout;
 };

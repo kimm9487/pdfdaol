@@ -3,7 +3,7 @@ import random
 import datetime
 from fastapi import APIRouter, Form, Depends, HTTPException, Request, BackgroundTasks
 from sqlalchemy.orm import Session
-from database import get_db, User, UserSession, AdminActivityLog, PdfDocument, log_admin_activity
+from database import get_db, User, UserSession, AdminActivityLog, PdfDocument, PaymentTransaction, log_admin_activity
 from utils.auth_utils import hash_password, verify_password
 from utils.email_utils import send_email  # 👈 공용 메일 함수 가져오기
 
@@ -148,6 +148,7 @@ def withdraw_user(username: str, request: Request, db: Session = Depends(get_db)
         user_id = user.id
         deleted_sessions = db.query(UserSession).filter(UserSession.user_id == user_id).delete(synchronize_session=False)
         deleted_logs = db.query(AdminActivityLog).filter(AdminActivityLog.admin_user_id == user_id).delete(synchronize_session=False)
+        deleted_payments = db.query(PaymentTransaction).filter(PaymentTransaction.user_id == user_id).delete(synchronize_session=False)
         deleted_docs = db.query(PdfDocument).filter(PdfDocument.user_id == user_id).delete(synchronize_session=False)
 
         db.delete(user)
@@ -155,7 +156,7 @@ def withdraw_user(username: str, request: Request, db: Session = Depends(get_db)
 
         return {
             "message": "회원 탈퇴가 완료되었습니다.", "withdrawn_username": username,
-            "cleanup": {"sessions": deleted_sessions, "activity_logs": deleted_logs, "documents": deleted_docs}
+            "cleanup": {"sessions": deleted_sessions, "activity_logs": deleted_logs, "payments": deleted_payments, "documents": deleted_docs}
         }
     except HTTPException:
         raise
