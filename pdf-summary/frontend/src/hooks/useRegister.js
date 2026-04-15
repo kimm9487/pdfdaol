@@ -39,6 +39,7 @@ export const useRegister = () => {
       timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
     } else if (timeLeft === 0) {
       setIsCodeSent(false);
+      setEmailCode(""); // 타이머 만료 시 인증번호 초기화
     }
     return () => clearInterval(timer);
   }, [isCodeSent, isEmailVerified, timeLeft]);
@@ -55,6 +56,7 @@ export const useRegister = () => {
     if (e.target.name === "user_email") {
       setIsCodeSent(false);
       setIsEmailVerified(false);
+      setEmailCode(""); // 이메일 변경 시 인증번호 초기화
     }
   };
 
@@ -87,6 +89,7 @@ export const useRegister = () => {
       if (response.ok) {
         setIsCodeSent(true);
         setTimeLeft(300);
+        setEmailCode(""); // 재전송 시 이전 인증번호 초기화
         toast.success(data.message);
       } else {
         toast.error(data.detail || "메일 발송에 실패했습니다.");
