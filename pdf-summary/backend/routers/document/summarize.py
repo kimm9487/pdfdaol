@@ -1,5 +1,6 @@
 import asyncio
 import io
+import re
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -15,22 +16,82 @@ from celery.result import AsyncResult
 import PyPDF2
 
 from services.pdf_service import extract_text_from_pdf
-from services.ai_service import summarize_text, summarize_text_stream, categorize_document  # [변경] summarize_text_stream 추가
-from services.ocr.factory import extract_with_model_sync  # [추가] OCR 동기 실행용 (run_in_executor)
-from database import get_db, PdfDocument, can_user_access_document, log_admin_activity
+# [osj | 2026-03-24] OCR 진행률 SSE 실시간 전송을 위한 동기 추출 함수 import
+from services.ocr.factory import extract_with_model_sync
+from services.ai_service_extract import (
+    summarize_text,
+    summarize_text_stream,
+    categorize_document,
+)
+from services.ai_service_chat import (
+    summarize_with_instruction,
+    summarize_with_instruction_stream,
+)
+# [방법3 수정] SessionLocal을 직접 import하여 generate() 안에서 독립 세션 생성에 사용
+from database import get_db, SessionLocal, PdfDocument, can_user_access_document, log_admin_activity
 from celery_app import celery_app
 from tasks.document_tasks import extract_document_task, summarize_document_task
 
 summarize_router = APIRouter(tags=["Summarization & Extraction"])
+MAX_CHAT_DOCUMENTS = 5
+CHAT_DOCUMENT_PATTERN = r"^\[문서\s*\d+\s*:\s*.+?\]\s*$"
+_chat_cancel_events = {}
+_chat_cancel_lock = asyncio.Lock()
+
+
+def _stringify_detail(detail, fallback: str = "오류가 발생했습니다.") -> str:
+    if detail is None:
+        return fallback
+    if isinstance(detail, str):
+        return detail
+    if isinstance(detail, list) and detail:
+        first = detail[0]
+        if isinstance(first, str):
+            return first
+        if isinstance(first, dict):
+            return str(first.get("msg") or first.get("message") or first)
+    if isinstance(detail, dict):
+        return str(detail.get("message") or detail.get("reason") or detail.get("suggestion") or detail)
+    return str(detail)
+
+
+def _build_chat_scope(user_id: Optional[int]) -> str:
+    return f"user_{user_id}" if user_id else "shared"
+
+
+def _count_chat_documents(document_text: str) -> int:
+    matches = re.findall(CHAT_DOCUMENT_PATTERN, document_text or "", flags=re.MULTILINE)
+    return len(matches)
+
+
+def _validate_chat_document_limit(document_text: str):
+    document_count = _count_chat_documents(document_text)
+    if document_count > MAX_CHAT_DOCUMENTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"대화형 요약은 문서 {MAX_CHAT_DOCUMENTS}개까지만 지원합니다.",
+        )
 
 
 class ChatSummarizeRequest(BaseModel):
     document_text: str
     instruction: str
-    model: str = "gemma3:latest"
+    model: str = "phi3:mini"
     user_id: Optional[int] = None
     use_rag: bool = True
     use_lora: bool = False
+    request_id: Optional[str] = None
+
+
+class ChatCancelRequest(BaseModel):
+    request_id: str
+    user_id: Optional[int] = None
+
+
+def _chat_cancel_key(user_id: Optional[int], request_id: str) -> str:
+    normalized_request_id = str(request_id or "").strip()
+    normalized_user = str(user_id) if user_id is not None else "shared"
+    return f"{normalized_user}:{normalized_request_id}"
 
 
 @summarize_router.post("/chat-summarize")
@@ -39,12 +100,13 @@ async def chat_summarize(request: ChatSummarizeRequest):
     text = (request.document_text or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="문서 텍스트가 비어있습니다.")
+    _validate_chat_document_limit(text)
 
     answer = await summarize_with_instruction(
         text=text,
         instruction=request.instruction,
         model=request.model,
-        user_scope=f"user_{request.user_id}" if request.user_id else "shared",
+        user_scope=_build_chat_scope(request.user_id),
         use_rag=request.use_rag,
         use_lora=request.use_lora,
     )
@@ -59,6 +121,87 @@ async def chat_summarize(request: ChatSummarizeRequest):
         "rag_enabled": request.use_rag,
         "lora_enabled": request.use_lora,
     }
+
+
+@summarize_router.post("/chat-summarize/stream")
+async def chat_summarize_stream(request: ChatSummarizeRequest):
+    """사용자 지시 기반 대화형 요약 응답을 SSE로 실시간 전송합니다."""
+    text = (request.document_text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="문서 텍스트가 비어있습니다.")
+    _validate_chat_document_limit(text)
+
+    model_used = request.model
+    if request.use_lora:
+        model_used = os.getenv("LORA_MODEL_NAME", model_used)
+
+    request_id = str(request.request_id or "").strip()
+    cancel_key = _chat_cancel_key(request.user_id, request_id) if request_id else None
+    cancel_event = asyncio.Event() if cancel_key else None
+    if cancel_key:
+        async with _chat_cancel_lock:
+            _chat_cancel_events[cancel_key] = cancel_event
+
+    def _sse(data: dict) -> str:
+        return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+    async def generate():
+        collected = []
+        # 첫 토큰 전까지 대기 시간이 길어질 수 있어, 초기 keep-alive 이벤트를 먼저 전송합니다.
+        yield _sse({"type": "start", "request_id": request_id or None})
+        try:
+            async for token in summarize_with_instruction_stream(
+                text=text,
+                instruction=request.instruction,
+                model=request.model,
+                user_scope=_build_chat_scope(request.user_id),
+                use_rag=request.use_rag,
+                use_lora=request.use_lora,
+                cancel_event=cancel_event,
+            ):
+                if cancel_event and cancel_event.is_set():
+                    yield _sse(
+                        {
+                            "type": "canceled",
+                            "request_id": request_id,
+                            "detail": "사용자 요청으로 정지",
+                        }
+                    )
+                    return
+                collected.append(token)
+                yield _sse({"type": "token", "text": token})
+        except asyncio.CancelledError:
+            if cancel_event:
+                cancel_event.set()
+            raise
+        except Exception as exc:
+            detail = _stringify_detail(getattr(exc, "detail", str(exc)), "요약 중 오류가 발생했습니다.")
+            yield _sse({"type": "error", "detail": detail})
+            return
+        finally:
+            if cancel_key:
+                async with _chat_cancel_lock:
+                    _chat_cancel_events.pop(cancel_key, None)
+
+        yield _sse(
+            {
+                "type": "done",
+                "answer": "".join(collected),
+                "model_used": model_used,
+                "rag_enabled": request.use_rag,
+                "lora_enabled": request.use_lora,
+            }
+        )
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @summarize_router.post("/extract/async")
@@ -153,13 +296,18 @@ async def _build_extraction_document(
     is_public: bool,
     db: Session,
 ):
-    extraction_result = await extract_text_from_pdf(file, ocr_model=ocr_model)
+    # ✅ 한 번만 읽고 bytes로 처리
+    file_bytes = await file.read()
+    filename = file.filename or "uploaded_file"
+
+    extraction_result = await extract_text_from_pdf(
+        file_bytes=file_bytes,
+        filename=filename,
+        ocr_model=ocr_model,
+    )
     extracted_text = extraction_result["text"]
     extraction_time = extraction_result["processing_time"]
-
-    await file.seek(0)
-    file_size = len(await file.read())
-    await file.seek(0)
+    file_size = len(file_bytes)
 
     stored_password = None
     if is_important:
@@ -169,12 +317,10 @@ async def _build_extraction_document(
                 detail="중요문서는 4자리 숫자 비밀번호가 필요합니다."
             )
         stored_password = password
-    else:
-        stored_password = None
 
     doc = PdfDocument(
         user_id=user_id,
-        filename=file.filename,
+        filename=filename,
         extracted_text=extracted_text,
         summary=None,
         ocr_model=extraction_result.get("ocr_model"),
@@ -192,12 +338,11 @@ async def _build_extraction_document(
     db.add(doc)
     db.commit()
     db.refresh(doc)
-    
+
     try:
         category_start = time.time()
-        category = await categorize_document(title=file.filename)
+        category = await categorize_document(title=filename, extracted_text=extracted_text)
         category_time = time.time() - category_start
-        
         doc.category = category
         db.commit()
         print(f"✅ 문서 카테고리 분류 완료: {category} ({category_time:.2f}초)")
@@ -205,7 +350,7 @@ async def _build_extraction_document(
         print(f"⚠️ 카테고리 분류 실패: {str(e)}")
         doc.category = "기타"
         db.commit()
-    
+
     log_admin_activity(
         db=db,
         admin_user_id=user_id,
@@ -213,19 +358,19 @@ async def _build_extraction_document(
         target_type="DOCUMENT",
         target_id=doc.id,
         details=json.dumps({
-            "filename": file.filename,
+            "filename": filename,
             "file_size_bytes": file_size,
             "ocr_model": extraction_result["ocr_model"],
             "category": doc.category,
             "is_important": is_important,
-            "is_public": is_public
+            "is_public": is_public,
         }),
-        ip_address=request.client.host
+        ip_address=request.client.host if request.client else "unknown",
     )
 
     return {
         "id": doc.id,
-        "filename": file.filename,
+        "filename": filename,
         "original_length": len(extracted_text),
         "extracted_text": extracted_text,
         "summary": None,
@@ -239,14 +384,14 @@ async def _build_extraction_document(
         "timing": {
             "extraction_time": f"{extraction_time:.2f}초",
             "summary_time": None,
-            "total_time": f"{extraction_time:.2f}초"
+            "total_time": f"{extraction_time:.2f}초",
         },
         "extraction_info": {
             "total_pages": extraction_result["total_pages"],
             "successful_pages": extraction_result["successful_pages"],
             "char_count": extraction_result["char_count"],
-            "file_size_mb": f"{file_size / (1024*1024):.2f}MB"
-        }
+            "file_size_mb": f"{file_size / (1024 * 1024):.2f}MB",
+        },
     }
 
 
@@ -322,39 +467,65 @@ async def extract_pdf(
                     "ocr_model": "pypdf2",
                 }
             else:
-                yield _sse({"type": "start", "total_pages": 0, "ocr_mode": True})
+                # [osj | 2026-03-24] run_in_executor로 OCR을 별도 스레드에서 실행하고
+                # asyncio.Queue를 통해 페이지 완료 시마다 ocr_progress SSE를 실시간 전송
+                # 총 페이지 수를 먼저 파악하기 위해 PDF를 렌더링 (이미지는 OCR 단계에서 재사용)
+                try:
+                    from services.ocr.pdf_page_renderer import render_input_to_images as _render
+                    import os as _os
+                    _ext = _os.path.splitext(filename)[1].lower()
+                    _preview_images = _render(contents, _ext)
+                    _total = len(_preview_images)
+                except Exception:
+                    _total = 0
 
-                loop = asyncio.get_running_loop()
-                queue = asyncio.Queue()
+                yield _sse({"type": "start", "total_pages": _total, "ocr_mode": True})
+                await asyncio.sleep(0)
 
-                def on_page(current: int, total: int):
-                    asyncio.run_coroutine_threadsafe(
-                        queue.put({"type": "ocr_progress", "page": current, "total": total}),
-                        loop,
-                    )
+                loop = asyncio.get_event_loop()
+                progress_queue: asyncio.Queue = asyncio.Queue()
 
-                future = loop.run_in_executor(
-                    None,
-                    lambda: extract_with_model_sync(contents, filename, model, on_page=on_page),
+                def _on_page(current: int, total: int):
+                    progress_queue.put_nowait({"page": current, "total": total})
+
+                import concurrent.futures as _cf
+                _executor = _cf.ThreadPoolExecutor(max_workers=1)
+
+                ocr_future = loop.run_in_executor(
+                    _executor,
+                    lambda: extract_with_model_sync(
+                        file_bytes=contents,
+                        filename=filename,
+                        ocr_model=model,
+                        on_page=_on_page,
+                    ),
                 )
 
-                while not future.done():
+                extraction_result = None
+                ocr_error = None
+                while not ocr_future.done() or not progress_queue.empty():
                     try:
-                        event = queue.get_nowait()
-                        yield _sse(event)
+                        prog = progress_queue.get_nowait()
+                        yield _sse({"type": "ocr_progress", "page": prog["page"], "total": prog["total"]})
                     except asyncio.QueueEmpty:
-                        await asyncio.sleep(0.08)
+                        pass
+                    await asyncio.sleep(0.05)
 
-                while not queue.empty():
+                try:
+                    extraction_result = await ocr_future
+                except Exception as exc:
+                    ocr_error = exc
+
+                # 남은 큐 비우기
+                while not progress_queue.empty():
                     try:
-                        yield _sse(queue.get_nowait())
+                        prog = progress_queue.get_nowait()
+                        yield _sse({"type": "ocr_progress", "page": prog["page"], "total": prog["total"]})
                     except asyncio.QueueEmpty:
                         break
 
-                try:
-                    extraction_result = future.result()
-                except Exception as exc:
-                    detail = getattr(exc, "detail", str(exc))
+                if ocr_error is not None:
+                    detail = _stringify_detail(getattr(ocr_error, "detail", str(ocr_error)), "추출 중 오류가 발생했습니다.")
                     yield _sse({"type": "error", "detail": detail})
                     return
 
@@ -388,7 +559,10 @@ async def extract_pdf(
             db.refresh(doc)
 
             try:
-                doc.category = await categorize_document(title=filename)
+                doc.category = await categorize_document(
+                    title=filename,
+                    extracted_text=extraction_result["text"],
+                )
             except Exception:
                 doc.category = "기타"
             db.commit()
@@ -449,7 +623,7 @@ async def extract_pdf(
                 },
             })
         except Exception as exc:
-            detail = getattr(exc, "detail", str(exc))
+            detail = _stringify_detail(getattr(exc, "detail", str(exc)), "추출 중 오류가 발생했습니다.")
             yield _sse({"type": "error", "detail": detail})
 
     return StreamingResponse(
@@ -467,14 +641,29 @@ async def extract_pdf(
 async def extract_pdf_for_chat(
     file: UploadFile = File(...),
     ocr_model: str = Form(default="pypdf2"),
+    current_doc_count: int = Form(default=0),
 ):
     """(Chat only) Extracts text without saving any document to DB."""
-    extraction_result = await extract_text_from_pdf(file, ocr_model=ocr_model)
+    if current_doc_count >= MAX_CHAT_DOCUMENTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"대화형 요약은 문서 {MAX_CHAT_DOCUMENTS}개까지만 지원합니다.",
+        )
+
+    # ✅ 한 번만 읽고 bytes로 처리
+    file_bytes = await file.read()
+    filename = file.filename or "uploaded_file"
+
+    extraction_result = await extract_text_from_pdf(
+        file_bytes=file_bytes,
+        filename=filename,
+        ocr_model=ocr_model,
+    )
     extracted_text = extraction_result["text"]
     extraction_time = extraction_result["processing_time"]
 
     return {
-        "filename": file.filename,
+        "filename": filename,
         "extracted_text": extracted_text,
         "ocr_model": extraction_result.get("ocr_model"),
         "timing": {
@@ -508,6 +697,15 @@ async def summarize_extracted_document(
 
     ip_address = request.client.host if request.client else "unknown"
 
+    # [방법3 수정] SQLAlchemy 객체(doc)를 generate() 안에서 직접 참조하면
+    # 외부 세션(db)이 닫힌 후 DetachedInstanceError가 발생할 수 있으므로
+    # 필요한 값을 미리 일반 변수로 추출해둠
+    doc_id = doc.id
+    doc_extracted_text = doc.extracted_text
+    doc_filename = doc.filename
+    doc_ocr_model = doc.ocr_model
+    doc_created_at = doc.created_at
+
     def _sse(data: dict) -> str:
         return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -516,7 +714,7 @@ async def summarize_extracted_document(
         summary_start = time.time()
 
         try:
-            async for token in summarize_text_stream(doc.extracted_text, model=model):
+            async for token in summarize_text_stream(doc_extracted_text, model=model):
                 collected.append(token)
                 yield _sse({"type": "token", "text": token})
         except Exception as exc:
@@ -527,38 +725,50 @@ async def summarize_extracted_document(
         full_summary = "".join(collected)
         summary_time = time.time() - summary_start
 
-        doc.summary = full_summary
-        doc.model_used = model
-        doc.summary_time_seconds = round(summary_time, 3)
-        doc.updated_at = datetime.datetime.now()
-        db.commit()
-        db.refresh(doc)
+        # [방법3 수정] Depends(get_db)로 받은 외부 세션(db) 대신
+        # SessionLocal()로 독립 세션을 생성하여 DB 저장
+        # → 라우터 수명주기(외부 세션 닫힘)와 무관하게 commit 보장
+        # → try/finally로 세션을 반드시 닫아 커넥션 누수 방지
+        independent_db = SessionLocal()
+        try:
+            independent_doc = independent_db.query(PdfDocument).filter(
+                PdfDocument.id == doc_id
+            ).first()
+            if independent_doc:
+                independent_doc.summary = full_summary
+                independent_doc.model_used = model
+                independent_doc.summary_time_seconds = round(summary_time, 3)
+                independent_doc.updated_at = datetime.datetime.now()
+                independent_db.commit()
 
-        log_admin_activity(
-            db=db,
-            admin_user_id=user_id,
-            action="DOCUMENT_SUMMARIZED",
-            target_type="DOCUMENT",
-            target_id=doc.id,
-            details=json.dumps({
-                "filename": doc.filename,
-                "llm_model": model,
-                "summary_length": len(full_summary),
-            }),
-            ip_address=ip_address,
-        )
+                log_admin_activity(
+                    db=independent_db,
+                    admin_user_id=user_id,
+                    action="DOCUMENT_SUMMARIZED",
+                    target_type="DOCUMENT",
+                    target_id=doc_id,
+                    details=json.dumps({
+                        "filename": doc_filename,
+                        "llm_model": model,
+                        "summary_length": len(full_summary),
+                    }),
+                    ip_address=ip_address,
+                )
+        finally:
+            # [방법3 수정] 독립 세션은 반드시 명시적으로 닫아야 커넥션 풀 누수 없음
+            independent_db.close()
 
         yield _sse({
             "type": "done",
-            "id": doc.id,
-            "document_id": doc.id,
-            "filename": doc.filename,
+            "id": doc_id,
+            "document_id": doc_id,
+            "filename": doc_filename,
             "summary": full_summary,
-            "ocr_model": doc.ocr_model,
-            "model_used": doc.model_used,
+            "ocr_model": doc_ocr_model,
+            "model_used": model,
             "summary_time": f"{summary_time:.2f}초",
-            "created_at": doc.created_at.isoformat() if doc.created_at else None,
-            "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+            "created_at": doc_created_at.isoformat() if doc_created_at else None,
+            "updated_at": datetime.datetime.now().isoformat(),
         })
 
     return StreamingResponse(

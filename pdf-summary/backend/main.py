@@ -15,6 +15,9 @@ from utils.discord import send_discord_alert
 from routers.auth.router import router as auth_router
 from routers.admin.router import router as admin_router
 from routers.document.router import router as document_router
+from routers.payment.router import router as payment_router
+# [추가] 상단 import
+from routers.websocket.websocket import sio, websocket_app
 
 # FastAPI 앱 초기화
 app = FastAPI(title="PDF Summary System API", version="1.0.0")
@@ -25,6 +28,10 @@ try:
     print("✅ 데이터베이스 테이블 자동 생성 완료")
 except Exception as e:
     print(f"⚠️ 데이터베이스 생성 중 에러 (테이블이 이미 존재할 수 있음): {e}")
+
+# --- 2. FastAPI 앱 설정 ---
+app = FastAPI(title="PDF 요약 시스템 API")
+
 
 # --- 전역 HTTPException 핸들러 (모든 4xx/5xx 자동 디스코드 알림) ---
 @app.exception_handler(HTTPException)
@@ -79,9 +86,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(document_router)
-
-
-
+app.include_router(payment_router)
+app.mount("/socket.io", websocket_app)
 
 
 # --- 기본 루트 경로 ---

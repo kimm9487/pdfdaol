@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { buildApiUrl } from "../config/api";
 import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
@@ -81,7 +82,7 @@ export const useDocumentHistory = () => {
     try {
       const userDbId = localStorage.getItem("userDbId");
       const response = await fetch(
-        buildApiUrl(`/api/document/${docId}?user_id=${userDbId}`),
+        buildApiUrl(`/api/documents/documents/${docId}?user_id=${userDbId}`),
         { method: "GET" },
       );
       if (response.ok) {
@@ -165,6 +166,35 @@ export const useDocumentHistory = () => {
     }
   };
 
+  // [추가 2026-03-19] 170~196줄: 일괄 삭제 함수 - 선택된 id 배열을 병렬로 DELETE 요청
+  const deleteBulk = async (ids) => {
+    if (!ids.length) return 0;
+    const userDbId = localStorage.getItem("userDbId");
+    let successCount = 0;
+    await Promise.all(
+      ids.map(async (docId) => {
+        try {
+          const res = await fetch(
+            buildApiUrl(`/api/documents/documents/${docId}`),
+            {
+              method: "DELETE",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                user_id: String(userDbId),
+              }).toString(),
+            },
+          );
+          if (res.ok) successCount++;
+        } catch (_) {}
+      }),
+    );
+    if (successCount > 0) {
+      setHistory((prev) => prev.filter((doc) => !ids.includes(doc.id)));
+      toast.success(`${successCount}개 문서가 삭제되었습니다.`);
+    }
+    return successCount;
+  };
+
   const togglePublic = async (item) => {
     const newPublicStatus = !item.is_public;
     const userDbId = localStorage.getItem("userDbId");
@@ -222,6 +252,7 @@ export const useDocumentHistory = () => {
     fetchDocument,
     saveSummary,
     deleteDocument,
+    deleteBulk, // [추가 2026-03-19] 248줄: 일괄 삭제 함수 export
     togglePublic,
     deleteAccount,
     setHistory, // Exposing setHistory for direct manipulation if needed

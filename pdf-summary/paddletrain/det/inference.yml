@@ -1,0 +1,161 @@
+Architecture:
+  Backbone:
+    disable_se: true
+    model_name: large
+    name: MobileNetV3
+    scale: 0.5
+  Head:
+    k: 50
+    name: DBHead
+  Neck:
+    name: RSEFPN
+    out_channels: 96
+    shortcut: true
+  Transform: null
+  algorithm: DB
+  model_type: det
+Eval:
+  dataset:
+    data_dir: /content/drive/MyDrive/paddleocr_court/data/det/val/images
+    label_file_list:
+    - /content/drive/MyDrive/paddleocr_court/data/det_val_label.txt
+    name: SimpleDataSet
+    transforms:
+    - DecodeImage:
+        channel_first: false
+        img_mode: BGR
+    - DetLabelEncode: null
+    - DetResizeForTest: null
+    - NormalizeImage:
+        mean:
+        - 0.485
+        - 0.456
+        - 0.406
+        order: hwc
+        scale: 1./255.
+        std:
+        - 0.229
+        - 0.224
+        - 0.225
+    - ToCHWImage: null
+    - KeepKeys:
+        keep_keys:
+        - image
+        - shape
+        - polys
+        - ignore_tags
+  loader:
+    batch_size_per_card: 1
+    drop_last: false
+    num_workers: 2
+    shuffle: false
+Global:
+  cal_metric_during_train: false
+  checkpoints: null
+  distributed: false
+  epoch_num: 200
+  eval_batch_step:
+  - 0
+  - 400
+  infer_img: null
+  log_smooth_window: 20
+  pretrained_model: null
+  print_batch_step: 10
+  save_epoch_step: 50
+  save_inference_dir: /content/drive/MyDrive/paddleocr_court/export/det
+  save_model_dir: /content/drive/MyDrive/paddleocr_court/output/det
+  save_res_path: ./output/det_db/predicts_db.txt
+  use_gpu: true
+  use_visualdl: false
+Loss:
+  alpha: 5
+  balance_loss: true
+  beta: 10
+  main_loss_type: DiceLoss
+  name: DBLoss
+  ohem_ratio: 3
+Metric:
+  main_indicator: hmean
+  name: DetMetric
+Optimizer:
+  beta1: 0.9
+  beta2: 0.999
+  lr:
+    learning_rate: 0.001
+    name: Cosine
+    warmup_epoch: 2
+  name: Adam
+  regularizer:
+    factor: 5.0e-05
+    name: L2
+PostProcess:
+  box_thresh: 0.6
+  max_candidates: 1000
+  name: DBPostProcess
+  thresh: 0.3
+  unclip_ratio: 1.5
+Train:
+  dataset:
+    data_dir: /content/drive/MyDrive/paddleocr_court/data/det/train/images
+    label_file_list:
+    - /content/drive/MyDrive/paddleocr_court/data/det_train_label.txt
+    name: SimpleDataSet
+    ratio_list:
+    - 1.0
+    transforms:
+    - DecodeImage:
+        channel_first: false
+        img_mode: BGR
+    - DetLabelEncode: null
+    - IaaAugment:
+        augmenter_args:
+        - args:
+            p: 0.5
+          type: Fliplr
+        - args:
+            rotate:
+            - -10
+            - 10
+          type: Affine
+        - args:
+            sizes:
+            - 0.5
+            - 3.0
+          type: Resize
+    - EastRandomCropData:
+        keep_ratio: true
+        max_tries: 50
+        size:
+        - 960
+        - 960
+    - MakeBorderMap:
+        shrink_ratio: 0.4
+        thresh_max: 0.7
+        thresh_min: 0.3
+    - MakeShrinkMap:
+        min_text_size: 8
+        shrink_ratio: 0.4
+    - NormalizeImage:
+        mean:
+        - 0.485
+        - 0.456
+        - 0.406
+        order: hwc
+        scale: 1./255.
+        std:
+        - 0.229
+        - 0.224
+        - 0.225
+    - ToCHWImage: null
+    - KeepKeys:
+        keep_keys:
+        - image
+        - threshold_map
+        - threshold_mask
+        - shrink_map
+        - shrink_mask
+  loader:
+    batch_size_per_card: 8
+    drop_last: false
+    num_workers: 2
+    shuffle: true

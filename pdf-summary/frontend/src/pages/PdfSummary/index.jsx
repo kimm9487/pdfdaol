@@ -27,6 +27,8 @@ const PdfSummary = () => {
     translatingOriginal,
     translatingSummary,
     streamingSummary,
+    streamingTranslationOriginal,
+    streamingTranslationSummary,
     extractionProgress,
     translations,
     isImportant,
@@ -103,6 +105,8 @@ const PdfSummary = () => {
             translatingSummary={translatingSummary}
             summarizing={summarizing}
             streamingSummary={streamingSummary}
+            streamingTranslationOriginal={streamingTranslationOriginal}
+            streamingTranslationSummary={streamingTranslationSummary}
             fileName={fileName}
             handleTranslate={handleTranslate}
             handleSummarizeExtracted={handleSummarizeExtracted}

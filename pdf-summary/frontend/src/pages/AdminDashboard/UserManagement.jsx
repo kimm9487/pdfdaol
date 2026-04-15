@@ -1,36 +1,37 @@
-import React, { useState, useEffect } from "react";
-import { buildApiUrl } from "../../config/api";
+import React, { useState, useEffect } from 'react';
+import { buildApiUrl } from '../../config/api';
 import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
+
 
 const UserManagement = () => {
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const loadAllUsers = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(buildApiUrl("/api/admin/users/"), {
-        cache: "no-store",
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: 회원 목록 조회 실패`);
-      }
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        const currentUserId = parseInt(localStorage.getItem("userDbId"));
-        const filteredUsers = data.filter((u) => u.id !== currentUserId);
-        setAllUsers(filteredUsers);
-      } else {
-        console.warn("예상치 못한 응답 형식:", data);
-        setAllUsers([]);
-      }
-    } catch (err) {
-      console.error("회원 목록 로드 오류:", err);
-      setAllUsers([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const loadAllUsers = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch(buildApiUrl('/api/admin/users/'), {
+                cache: 'no-store'
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: 회원 목록 조회 실패`);
+            }
+            const data = await response.json();
+            if (Array.isArray(data)) {
+                const currentUserId = parseInt(localStorage.getItem('userDbId'));
+                const filteredUsers = data.filter(u => u.id !== currentUserId);
+                setAllUsers(filteredUsers);
+            } else {
+                console.warn('예상치 못한 응답 형식:', data);
+                setAllUsers([]);
+            }
+        } catch (err) {
+            console.error('회원 목록 로드 오류:', err);
+            setAllUsers([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
   const handleDeleteUser = async (userId, username) => {
     if (!window.confirm(`정말 사용자 '${username}'을(를) 삭제하시겠습니까?`)) {
@@ -41,20 +42,20 @@ const UserManagement = () => {
       const formData = new FormData();
       formData.append("admin_user_id", adminId);
 
-      const response = await fetch(buildApiUrl(`/api/admin/users/${userId}`), {
-        method: "DELETE",
-        body: formData,
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: 회원 삭제 실패`);
-      }
-      alert("사용자가 삭제되었습니다.");
-      setAllUsers(allUsers.filter((u) => u.id !== userId));
-    } catch (err) {
-      alert("회원 삭제 실패: " + err.message);
-      console.error("회원 삭제 오류:", err);
-    }
-  };
+            const response = await fetch(buildApiUrl(`/api/admin/users/${userId}`), {
+                method: 'DELETE',
+                body: formData
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: 회원 삭제 실패`);
+            }
+            alert('사용자가 삭제되었습니다.');
+            setAllUsers(allUsers.filter(u => u.id !== userId));
+        } catch (err) {
+            alert('회원 삭제 실패: ' + err.message);
+            console.error('회원 삭제 오류:', err);
+        }
+    };
 
   useEffect(() => {
     loadAllUsers();

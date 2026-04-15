@@ -7,6 +7,10 @@ import App from './App.jsx'
 
 alert("✅ main.jsx 로드됨 - React 앱 시작");
 console.log("✅ main.jsx 로드됨 - React 앱 시작");
+console.log("🔍 VITE_SOCKET_URL:", import.meta.env.VITE_SOCKET_URL);
+
+// WebSocket URL localStorage 초기화
+localStorage.removeItem('backendSocketUrl');
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

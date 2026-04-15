@@ -112,7 +112,13 @@ class PdfDocument(Base):
     successful_pages = Column(Integer, comment="성공적으로 추출된 페이지 수")
     
     # 문서 분류 필드
-    category = Column(Enum('강의', '법률안', '보고서', '기타', name='document_categories'), default='기타', nullable=False, index=True, comment="문서 카테고리 (강의, 법률안, 보고서, 기타)")
+    category = Column(
+        Enum('법령·규정', '행정·공문', '보고·계획', '재정·계약', '기타', name='document_categories'),
+        default='기타',
+        nullable=False,
+        index=True,
+        comment="문서 카테고리 (공문서: 법령·규정, 행정·공문, 보고·계획, 재정·계약, 기타)",
+    )
     
     # 중요 문서 및 보안 관련 필드
     is_important = Column(Boolean, default=False, comment="중요문서 여부")
@@ -121,6 +127,28 @@ class PdfDocument(Base):
     
     # 관계 설정
     owner = relationship("User", back_populates="documents")
+    payment_transactions = relationship("PaymentTransaction", back_populates="document")
+
+
+class PaymentTransaction(Base):
+    __tablename__ = "payment_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("pdf_documents.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    provider = Column(String(30), nullable=False, default="kakaopay", index=True)
+    status = Column(Enum("pending", "approved", "canceled", "failed", name="payment_statuses"), nullable=False, default="pending", index=True)
+    amount = Column(Integer, nullable=False, default=0)
+    partner_order_id = Column(String(100), nullable=False, unique=True, index=True)
+    partner_user_id = Column(String(100), nullable=False)
+    tid = Column(String(100), nullable=True, index=True)
+    payment_method_type = Column(String(30), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.now, index=True)
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+
+    document = relationship("PdfDocument", back_populates="payment_transactions")
+    user = relationship("User")
 
 
 

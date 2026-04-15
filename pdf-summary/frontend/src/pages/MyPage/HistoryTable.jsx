@@ -1,18 +1,36 @@
+// [2026-03-25 osj] 일괄삭제 체크박스 추가 - selectedIds, onSelectItem, onSelectAll props 추가
 import React from "react";
 
 const HistoryTable = ({
   items,
   isAdmin,
+  selectedIds = [], // [2026-03-25 osj]
+  onSelectItem, // [2026-03-25 osj]
+  onSelectAll, // [2026-03-25 osj]
   onViewDocument,
   onEditSummary,
   onTogglePublic,
   onDeleteDocument,
 }) => {
+  // [2026-03-25 osj] 현재 페이지 전체선택 여부 판단
+  const currentIds = items.map((i) => i.id);
+  const allSelected =
+    currentIds.length > 0 && currentIds.every((id) => selectedIds.includes(id));
+
   return (
     <div className="history-table-wrapper">
       <table className="history-table">
         <thead>
           <tr>
+            {/* [2026-03-25 osj] 전체선택 체크박스 */}
+            <th className="checkbox-col">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={() => onSelectAll(currentIds)}
+                title="전체 선택"
+              />
+            </th>
             <th>날짜</th>
             <th>파일명</th>
             {isAdmin && <th>작성자</th>}
@@ -24,7 +42,19 @@ const HistoryTable = ({
         <tbody>
           {items.length > 0 ? (
             items.map((item) => (
-              <tr key={item.id}>
+              // [2026-03-25 osj] 선택된 행 하이라이트
+              <tr
+                key={item.id}
+                className={selectedIds.includes(item.id) ? "row-selected" : ""}
+              >
+                {/* [2026-03-25 osj] 개별 체크박스 */}
+                <td className="checkbox-col">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(item.id)}
+                    onChange={() => onSelectItem(item.id)}
+                  />
+                </td>
                 <td>{item.date}</td>
                 <td className="file-name-cell" title={item.fileName}>
                   <span className="filename-text">{item.fileName}</span>
@@ -89,7 +119,7 @@ const HistoryTable = ({
           ) : (
             <tr>
               <td
-                colSpan={isAdmin ? 6 : 5}
+                colSpan={isAdmin ? 7 : 6}
                 style={{ textAlign: "center", padding: "20px" }}
               >
                 히스토리가 없습니다.

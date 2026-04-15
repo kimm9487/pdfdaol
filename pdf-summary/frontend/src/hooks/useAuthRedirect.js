@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
 
 /**

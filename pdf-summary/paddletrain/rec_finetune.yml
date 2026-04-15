@@ -1,0 +1,134 @@
+Architecture:
+  Backbone:
+    last_conv_stride:
+    - 1
+    - 2
+    last_pool_type: avg
+    name: MobileNetV1Enhance
+    scale: 0.5
+  Head:
+    head_list:
+    - CTCHead:
+        Head:
+          fc_decay: 1.0e-05
+        Neck:
+          depth: 2
+          dims: 64
+          hidden_dims: 64
+          name: svtr
+          use_guide: true
+    - NRTRHead:
+        max_text_length: 60
+        nrtr_dim: 256
+    name: MultiHead
+  Transform: null
+  algorithm: SVTR_LCNet
+  model_type: rec
+Eval:
+  dataset:
+    data_dir: /content/drive/MyDrive/paddleocr_court/data/rec/val/images
+    label_file_list:
+    - /content/drive/MyDrive/paddleocr_court/data/rec_val_label.txt
+    name: SimpleDataSet
+    transforms:
+    - DecodeImage:
+        channel_first: false
+        img_mode: BGR
+    - MultiLabelEncode:
+        gtc_encode: NRTRLabelEncode
+    - RecResizeImg:
+        image_shape: &id001
+        - 3
+        - 48
+        - 480
+    - KeepKeys:
+        keep_keys:
+        - image
+        - label_ctc
+        - label_gtc
+        - length
+        - valid_ratio
+  loader:
+    batch_size_per_card: 192
+    drop_last: false
+    num_workers: 4
+    shuffle: false
+Global:
+  cal_metric_during_train: true
+  character_dict_path: /content/drive/MyDrive/paddleocr_court/data/korean_court_dict.txt
+  checkpoints: null
+  distributed: false
+  epoch_num: 100
+  eval_batch_step:
+  - 0
+  - 2000
+  infer_img: null
+  infer_mode: false
+  log_smooth_window: 20
+  max_text_length: 60
+  pretrained_model: /content/drive/MyDrive/paddleocr_court/pretrained/korean_PP-OCRv4_rec_train/best_accuracy
+  print_batch_step: 10
+  save_epoch_step: 10
+  save_inference_dir: null
+  save_model_dir: /content/drive/MyDrive/paddleocr_court/output/rec
+  save_res_path: ./output/rec/predicts_rec.txt
+  use_gpu: true
+  use_space_char: true
+  use_visualdl: false
+Loss:
+  loss_config_list:
+  - CTCLoss: null
+  - NRTRLoss: null
+  name: MultiLoss
+Metric:
+  ignore_space: false
+  main_indicator: acc
+  name: RecMetric
+Optimizer:
+  beta1: 0.9
+  beta2: 0.999
+  lr:
+    decay_epochs:
+    - 120
+    - 180
+    - 220
+    name: Piecewise
+    values:
+    - 0.0003
+    - 8.999999999999999e-05
+    - 2.9999999999999997e-05
+    - 8.999999999999999e-06
+    warmup_epoch: 3
+  name: Adam
+  regularizer:
+    factor: 3.0e-05
+    name: L2
+PostProcess:
+  name: CTCLabelDecode
+Train:
+  dataset:
+    data_dir: /content/drive/MyDrive/paddleocr_court/data/rec/train/images
+    label_file_list:
+    - /content/drive/MyDrive/paddleocr_court/data/rec_train_label.txt
+    name: SimpleDataSet
+    transforms:
+    - DecodeImage:
+        channel_first: false
+        img_mode: BGR
+    - RecAug: null
+    - MultiLabelEncode:
+        gtc_encode: NRTRLabelEncode
+    - RecResizeImg:
+        image_shape: *id001
+    - KeepKeys:
+        keep_keys:
+        - image
+        - label_ctc
+        - label_gtc
+        - length
+        - valid_ratio
+  loader:
+    batch_size_per_card: 192
+    drop_last: true
+    num_workers: 4
+    shuffle: true

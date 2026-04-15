@@ -1,8 +1,12 @@
+version: "3.8"
+
 services:
   db:
     image: mariadb:11.4
     container_name: pdf_db
     restart: unless-stopped
+    env_file:
+      - ./backend/.env
     environment:
       MARIADB_ROOT_PASSWORD: "9487"
       MARIADB_DATABASE: pdf_summary
@@ -17,32 +21,6 @@ services:
       timeout: 5s
       retries: 12
 
-  backend:
-    build: ./backend
-    container_name: pdf_backend
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    environment:
-      DB_HOST: 192.168.0.151
-      DB_PORT: 3307
-      DB_USER: root
-      DB_PASSWORD: "9487"
-      DB_NAME: pdf_summary
-      CHROMA_BASE_URL: http://chroma:8000
-      CHROMA_COLLECTION: documents
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      OCR_USE_GPU: "true"
-      PADDLE_DEVICE: gpu:0
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-
   redis:
     image: redis:7-alpine
     container_name: pdf_redis
@@ -51,80 +29,16 @@ services:
       - "6379:6379"
 
   chroma:
-    image: chromadb/chroma:0.5.5
+    image: chromadb/chroma:0.5.23
     container_name: pdf_chroma
     restart: unless-stopped
     environment:
       IS_PERSISTENT: "TRUE"
       ANONYMIZED_TELEMETRY: "FALSE"
     ports:
-      - "8001:8000"
+      - "8002:8000"
     volumes:
       - chroma_data:/chroma/chroma
-
-  worker_ocr:
-    build: ./backend
-    container_name: pdf_worker_ocr
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    command: python -m celery -A celery_app.celery_app worker -Q ocr --loglevel=info --concurrency=2 --hostname=ocr@%h
-    environment:
-      DB_HOST: 192.168.0.151
-      DB_PORT: 3307
-      DB_USER: root
-      DB_PASSWORD: "9487"
-      DB_NAME: pdf_summary
-      CHROMA_BASE_URL: http://chroma:8000
-      CHROMA_COLLECTION: documents
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      PYTHONPATH: /app
-      OCR_USE_GPU: "true"
-      PADDLE_DEVICE: gpu:0
-    volumes:
-      - ./backend:/app
-
-  worker_llm:
-    build: ./backend
-    container_name: pdf_worker_llm
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    command: python -m celery -A celery_app.celery_app worker -Q llm --loglevel=info --concurrency=2 --hostname=llm@%h
-    environment:
-      DB_HOST: 192.168.0.151
-      DB_PORT: 3307
-      DB_USER: root
-      DB_PASSWORD: "9487"
-      DB_NAME: pdf_summary
-      CHROMA_BASE_URL: http://chroma:8000
-      CHROMA_COLLECTION: documents
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      PYTHONPATH: /app
-    volumes:
-      - ./backend:/app
-
-  flower:
-    build: ./backend
-    container_name: pdf_flower
-    restart: unless-stopped
-    depends_on:
-      - redis
-    command: python -m celery -A celery_app.celery_app flower --port=5555
-    environment:
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      PYTHONPATH: /app
-    ports:
-      - "5555:5555"
 
   ollama:
     image: ollama/ollama:latest
@@ -134,8 +48,207 @@ services:
       - ollama
     ports:
       - "11434:11434"
+    environment:
+      OLLAMA_GPU_OVERHEAD: "134217728"
+      OLLAMA_KEEP_ALIVE: "30m"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
     volumes:
       - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  backend:
+    build: ./backend
+    image: pdf-summary-app:latest
+    container_name: pdf_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - ./backend/.env
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EXTRACT_DEFAULT_MODEL: gemma3:latest
+      CHAT_DEFAULT_MODEL: exaone3.5:2.4b
+      CHAT_NUM_CTX: "4096"
+      CHAT_NUM_PREDICT: "900"
+      CHAT_REPEAT_PENALTY: "1.1"
+      DEFAULT_MODEL: gemma3:latest
+      LORA_MODEL_NAME: exaone3.5:2.4b
+      CHROMA_BASE_URL: http://chroma:8000
+      CHROMA_COLLECTION: documents
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      OCR_USE_GPU: "true"
+      PADDLE_DEVICE: gpu:0
+      PADDLE_DET_DB_THRESH: "0.3"
+      PADDLE_DET_DB_BOX_THRESH: "0.6"
+      PADDLE_DET_DB_UNCLIP_RATIO: "1.5"
+      PADDLE_DET_DB_SCORE_MODE: "fast"
+      PADDLE_DET_LIMIT_SIDE_LEN: "960"
+      PADDLE_CUSTOM_MODEL_DIR: /app/paddletrain
+      TESSDATA_PREFIX: /tessdata
+      USE_REDIS: "true"
+      REDIS_URL: "redis://redis:6379/0"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./paddletrain:/app/paddletrain:ro
+      - ./tessdata:/tessdata:ro
+
+  websocket:
+    build: ./backend  # 💡 [추가] 이미지 빌드 컨텍스트 명시
+    image: pdf-summary-app:latest
+    container_name: pdf_websocket
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started  # 💡 [핵심] 백엔드가 이미지를 다 구워낼 때까지 안전하게 대기
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - ./backend/.env
+    environment:
+      PYTHONPATH: /app  # 💡 [추가] 모듈 임포트 에러 방지용 경로 설정
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      CHROMA_BASE_URL: http://chroma:8000
+      USE_REDIS: "true"
+      REDIS_URL: "redis://redis:6379/0"
+    command: python websocket_main.py
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./backend:/app
+
+  worker_ocr:
+    build: ./backend  # 💡 [추가]
+    image: pdf-summary-app:latest
+    container_name: pdf_worker_ocr
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: python -m celery -A celery_app.celery_app worker -Q ocr --loglevel=info --concurrency=1 --hostname=ocr@%h
+    env_file:
+      - ./backend/.env
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EXTRACT_DEFAULT_MODEL: gemma3:latest
+      CHAT_DEFAULT_MODEL: exaone3.5:2.4b
+      CHAT_NUM_CTX: "4096"
+      CHAT_NUM_PREDICT: "900"
+      CHAT_REPEAT_PENALTY: "1.1"
+      DEFAULT_MODEL: gemma3:latest
+      LORA_MODEL_NAME: exaone3.5:2.4b
+      CHROMA_BASE_URL: http://chroma:8000
+      CHROMA_COLLECTION: documents
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      LIBREOFFICE_PATH: /usr/bin/soffice
+      PYTHONPATH: /app
+      OCR_USE_GPU: "true"
+      PADDLE_DEVICE: gpu:0
+      PADDLE_DETERMINISTIC: "1"
+      PADDLE_DET_DB_THRESH: "0.3"
+      PADDLE_DET_DB_BOX_THRESH: "0.6"
+      PADDLE_DET_DB_UNCLIP_RATIO: "1.5"
+      PADDLE_DET_DB_SCORE_MODE: "fast"
+      PADDLE_DET_LIMIT_SIDE_LEN: "960"
+      PADDLE_CUSTOM_MODEL_DIR: /app/paddletrain
+      TESSDATA_PREFIX: /tessdata
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ./backend:/app
+      - ./paddletrain:/app/paddletrain:ro
+      - ./tessdata:/tessdata:ro
+
+  worker_llm:
+    build: ./backend  # 💡 [추가]
+    image: pdf-summary-app:latest
+    container_name: pdf_worker_llm
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: python -m celery -A celery_app.celery_app worker -Q llm --loglevel=info --concurrency=2 --hostname=llm@%h
+    env_file:
+      - ./backend/.env
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EXTRACT_DEFAULT_MODEL: gemma3:latest
+      CHAT_DEFAULT_MODEL: exaone3.5:2.4b
+      CHAT_NUM_CTX: "4096"
+      CHAT_NUM_PREDICT: "900"
+      CHAT_REPEAT_PENALTY: "1.1"
+      DEFAULT_MODEL: gemma3:latest
+      LORA_MODEL_NAME: exaone3.5:2.4b
+      CHROMA_BASE_URL: http://chroma:8000
+      CHROMA_COLLECTION: documents
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PYTHONPATH: /app
+    volumes:
+      - ./backend:/app
+
+  flower:
+    build: ./backend  # 💡 [추가]
+    image: pdf-summary-app:latest
+    container_name: pdf_flower
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - redis
+    command: python -m celery -A celery_app.celery_app flower --port=5555
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PYTHONPATH: /app
+    ports:
+      - "5555:5555"
 
   frontend:
     build: ./frontend
@@ -143,13 +256,21 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+      - websocket
     environment:
       VITE_API_PORT: "8000"
+      VITE_API_URL: "http://192.168.0.151.nip.io:8000"
+      VITE_BACKEND_TARGET: "http://backend:8000"
+      VITE_SOCKET_URL: "ws://192.168.0.151.nip.io:8001"
+      VITE_SOCKET_TARGET: "http://websocket:8001"
+      VITE_SOCKET_PORT: "8001"
+      NODE_ENV: development
     ports:
       - "5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
+
 volumes:
   ollama_data:
   mariadb_data:

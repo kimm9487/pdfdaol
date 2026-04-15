@@ -11,9 +11,6 @@ node_modules
 dist
 dist-ssr
 *.local
-# Environments
-.env
-.env.local
 
 # Editor directories and files
 .vscode/*
@@ -45,3 +42,41 @@ coverage/
 .venv/
 venv/
 .ipynb_checkpoints/
+
+# --- Env files (never commit secrets) ---
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# --- Python build/test/cache ---
+.python-version
+.tox/
+.nox/
+.hypothesis/
+.pyre/
+.pytype/
+.coverage
+.coverage.*
+htmlcov/
+pip-wheel-metadata/
+*.egg-info/
+*.egg
+build/
+site/
+
+# --- Node/package manager caches ---
+.npm/
+.pnpm-store/
+.yarn/
+.turbo/
+.next/
+.nuxt/
+
+# --- General temporary/cache files ---
+tmp/
+temp/
+*.tmp
+*.cache
+Thumbs.db

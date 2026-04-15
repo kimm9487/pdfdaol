@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast"; // [추가] alert() 대신 toast 알림 사용
 
 const EditSummaryModal = ({ show, onClose, onSave, document }) => {
@@ -7,6 +7,13 @@ const EditSummaryModal = ({ show, onClose, onSave, document }) => {
   const [summary, setSummary] = useState("");
   const [isImportant, setIsImportant] = useState(false);
   const [docPassword, setDocPassword] = useState("");
+
+  // [2026-03-30 osj] PIN 입력 박스 ref 배열
+  const pinRef0 = useRef(null);
+  const pinRef1 = useRef(null);
+  const pinRef2 = useRef(null);
+  const pinRef3 = useRef(null);
+  const pinRefs = [pinRef0, pinRef1, pinRef2, pinRef3];
 
   useEffect(() => {
     if (document) {
@@ -34,6 +41,33 @@ const EditSummaryModal = ({ show, onClose, onSave, document }) => {
       isImportant,
       password: isImportant ? docPassword : null,
     });
+  };
+
+  // [2026-03-30 osj] PIN 입력 박스 handlePinChange / handlePinKeyDown
+  const handlePinChange = (index, value) => {
+    const digit = value.replace(/[^0-9]/g, "").slice(-1);
+    const arr = docPassword.padEnd(4, " ").split("");
+    arr[index] = digit || " ";
+    const next = arr.join("").replace(/ /g, "");
+    setDocPassword(next);
+    if (digit && index < 3) {
+      pinRefs[index + 1].current?.focus();
+    }
+  };
+
+  const handlePinKeyDown = (index, e) => {
+    if (e.key === "Backspace") {
+      const arr = docPassword.padEnd(4, " ").split("");
+      if (arr[index] && arr[index] !== " ") {
+        arr[index] = " ";
+        setDocPassword(arr.join("").replace(/ /g, ""));
+      } else if (index > 0) {
+        pinRefs[index - 1].current?.focus();
+        const prev = docPassword.padEnd(4, " ").split("");
+        prev[index - 1] = " ";
+        setDocPassword(prev.join("").replace(/ /g, ""));
+      }
+    }
   };
 
   const handleClose = () => {
@@ -118,17 +152,41 @@ const EditSummaryModal = ({ show, onClose, onSave, document }) => {
               >
                 설정할 비밀번호 (숫자 4자리)
               </label>
-              <input
-                type="text"
-                maxLength="4"
-                value={docPassword}
-                onChange={(e) =>
-                  setDocPassword(e.target.value.replace(/[^0-9]/g, ""))
-                }
-                placeholder="비밀번호 4자리 입력"
-                className="form-input"
-                style={{ border: "1px solid #fc8181", marginTop: "5px" }}
-              />
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  justifyContent: "center",
+                  marginTop: "12px",
+                }}
+              >
+                {[0, 1, 2, 3].map((i) => (
+                  <input
+                    key={i}
+                    ref={pinRefs[i]}
+                    type="password"
+                    inputMode="numeric"
+                    maxLength="1"
+                    value={docPassword[i] || ""}
+                    onChange={(e) => handlePinChange(i, e.target.value)}
+                    onKeyDown={(e) => handlePinKeyDown(i, e)}
+                    style={{
+                      width: "56px",
+                      height: "56px",
+                      borderRadius: "12px",
+                      border: "1.5px solid #d1d5db",
+                      fontSize: "24px",
+                      textAlign: "center",
+                      outline: "none",
+                      caretColor: "transparent",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
+                      transition: "border-color 0.15s",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = "#c53030")}
+                    onBlur={(e) => (e.target.style.borderColor = "#d1d5db")}
+                  />
+                ))}
+              </div>
             </div>
           )}
 

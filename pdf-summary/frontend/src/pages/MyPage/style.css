@@ -68,6 +68,45 @@
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
+/* [2026-03-25 osj] 일괄삭제 기능 추가 - history-header, bulk-delete-btn, checkbox-col, row-selected */
+
+/* 히스토리 헤더 (제목 + 일괄삭제 버튼) */
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 일괄삭제 버튼 */
+.bulk-delete-btn {
+  padding: 7px 16px;
+  background-color: #ff7675;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.bulk-delete-btn:hover {
+  background-color: #d63031;
+}
+
+/* 체크박스 열 */
+.checkbox-col {
+  width: 36px;
+  text-align: center;
+}
+
+/* 선택된 행 하이라이트 */
+.history-table tr.row-selected {
+  background-color: #fff5f5;
+}
+
 .history-table-wrapper {
   overflow-x: auto;
 }

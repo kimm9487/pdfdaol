@@ -2,7 +2,7 @@ import json
 import datetime
 from fastapi import APIRouter, Form, Depends, HTTPException, Request
 from sqlalchemy.orm import Session, joinedload
-from database import get_db, User, PdfDocument, log_admin_activity
+from database import get_db, User, PdfDocument, PaymentTransaction, log_admin_activity
 
 documents_router = APIRouter(prefix="/documents", tags=["Admin-Documents"])
 
@@ -10,6 +10,7 @@ documents_router = APIRouter(prefix="/documents", tags=["Admin-Documents"])
 def get_admin_documents(
     page: int = 1,
     limit: int = 1000,
+    viewer_user_id: int = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -33,8 +34,42 @@ def get_admin_documents(
         
         total_count = db.query(PdfDocument).count()
         
-        return {
-            "documents": [
+        viewer_user = None
+        viewer_is_admin = False
+        if viewer_user_id:
+            viewer_user = db.query(User).filter(User.id == viewer_user_id).first()
+            viewer_is_admin = bool(viewer_user and viewer_user.role == "admin")
+
+        paid_document_ids = set()
+        if viewer_user_id:
+            paid_rows = (
+                db.query(PaymentTransaction.document_id)
+                .filter(
+                    PaymentTransaction.user_id == viewer_user_id,
+                    PaymentTransaction.provider == "kakaopay",
+                    PaymentTransaction.status == "approved",
+                )
+                .distinct()
+                .all()
+            )
+            paid_document_ids = {int(row[0]) for row in paid_rows}
+
+        serialized_documents = []
+        for doc in documents:
+            can_view_password = (
+                viewer_is_admin
+                or (viewer_user_id is not None and int(doc.user_id) == int(viewer_user_id))
+            )
+            requires_payment = (
+                bool(doc.is_public)
+                and bool(doc.is_important)
+                and viewer_user_id is not None
+                and int(doc.user_id) != int(viewer_user_id)
+                and not viewer_is_admin
+                and int(doc.id) not in paid_document_ids
+            )
+
+            serialized_documents.append(
                 {
                     "id": doc.id,
                     "filename": doc.filename,
@@ -58,15 +93,19 @@ def get_admin_documents(
                         "username": doc.owner.username if doc.owner else None,
                         "full_name": doc.owner.full_name if doc.owner else "알수없음"
                     },
-                    "summary": doc.summary if doc.summary else "요약 내용이 없습니다.",
-                    "extracted_text": doc.extracted_text,
-                    "password": doc.password,
+                    "summary": "" if requires_payment else (doc.summary if doc.summary else ""),
+                    "extracted_text": "" if requires_payment else doc.extracted_text,
+                    "password": doc.password if can_view_password else None,
                     "category": doc.category,
                     "is_public": bool(doc.is_public),
                     "is_important": bool(doc.is_important),
+                    "requires_payment": requires_payment,
+                    "is_paid_by_viewer": int(doc.id) in paid_document_ids,
                 }
-                for doc in documents
-            ],
+            )
+
+        return {
+            "documents": serialized_documents,
             "pagination": {
                 "page": page,
                 "limit": limit,
@@ -203,3 +242,61 @@ def admin_update_document(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"문서 수정 실패: {str(e)}")
+
+
+@documents_router.get("/payment-logs")
+def get_payment_logs(
+    page: int = 1,
+    limit: int = 100,
+    admin_user_id: int = None,
+    db: Session = Depends(get_db),
+):
+    """관리자 결제 로그 조회"""
+    try:
+        if admin_user_id is not None:
+            admin_user = db.query(User).filter(User.id == admin_user_id).first()
+            if not admin_user or admin_user.role != "admin":
+                raise HTTPException(status_code=403, detail="관리자만 이용 가능합니다.")
+
+        offset = max(0, (page - 1) * limit)
+
+        base_query = (
+            db.query(PaymentTransaction, User, PdfDocument)
+            .join(User, PaymentTransaction.user_id == User.id)
+            .join(PdfDocument, PaymentTransaction.document_id == PdfDocument.id)
+            .order_by(PaymentTransaction.created_at.desc())
+        )
+
+        total_count = base_query.count()
+        rows = base_query.offset(offset).limit(limit).all()
+
+        return {
+            "payment_logs": [
+                {
+                    "payment_id": payment.id,
+                    "document_id": document.id,
+                    "filename": document.filename,
+                    "user_id": user.id,
+                    "username": user.username,
+                    "full_name": user.full_name,
+                    "provider": payment.provider,
+                    "status": payment.status,
+                    "amount": payment.amount,
+                    "partner_order_id": payment.partner_order_id,
+                    "payment_method_type": payment.payment_method_type,
+                    "approved_at": payment.approved_at.isoformat() if payment.approved_at else None,
+                    "created_at": payment.created_at.isoformat() if payment.created_at else None,
+                }
+                for payment, user, document in rows
+            ],
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total_count": total_count,
+                "total_pages": (total_count + limit - 1) // limit,
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"결제 로그 조회 실패: {str(e)}")
