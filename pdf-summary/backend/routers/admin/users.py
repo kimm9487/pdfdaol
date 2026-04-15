@@ -1,5 +1,6 @@
 import json
 from fastapi import APIRouter, Form, Depends, HTTPException, Request
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 from database import get_db, User, PdfDocument, UserSession, AdminActivityLog, PaymentTransaction, log_admin_activity
 
@@ -71,9 +72,17 @@ def delete_user(
             .filter(AdminActivityLog.admin_user_id == user_id)
             .delete(synchronize_session=False)
         )
+
+        # user_id 불일치 데이터가 있어도 FK 오류 없이 삭제되도록 문서 참조 결제를 우선 정리
+        owned_doc_ids = select(PdfDocument.id).where(PdfDocument.user_id == user_id)
         deleted_payments = (
             db.query(PaymentTransaction)
-            .filter(PaymentTransaction.user_id == user_id)
+            .filter(
+                or_(
+                    PaymentTransaction.user_id == user_id,
+                    PaymentTransaction.document_id.in_(owned_doc_ids),
+                )
+            )
             .delete(synchronize_session=False)
         )
         deleted_docs = (
