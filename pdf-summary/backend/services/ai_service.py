@@ -642,6 +642,108 @@ async def _get_ollama_embedding(text: str, model: str = EMBEDDING_MODEL) -> Opti
     return None
 
 
+async def upsert_document_to_chroma(
+    document_id: int,
+    document_text: str,
+    filename: str,
+    user_id: Optional[int],
+) -> bool:
+    """
+    문서를 청크로 분할하여 임베딩 생성 후 ChromaDB에 저장
+    
+    Returns:
+        성공 여부 (True/False)
+    """
+    if not RAG_ENABLED:
+        return False
+
+    text = (document_text or "").strip()
+    if not text:
+        return False
+
+    chroma_client = _get_chroma_http_client()
+    if chroma_client is None:
+        return False
+
+    chunks = _split_text_for_rag(text)
+    if not chunks:
+        return False
+
+    # 스코프 및 메타데이터 설정
+    user_scope = f"user_{user_id}" if user_id else "shared"
+    scope = _sanitize_collection_suffix(user_scope)
+    owner_id = _extract_owner_id_from_scope(scope)
+    visibility = _resolve_visibility_from_scope(scope)
+    collection_name = _sanitize_collection_suffix(CHROMA_SHARED_COLLECTION)
+
+    try:
+        collection = chroma_client.get_or_create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"},
+        )
+    except Exception as exc:
+        print(f"⚠️ Chroma 컬렉션 생성 실패: {str(exc)}")
+        return False
+
+    # 문서 지문: document_id와 텍스트 기반
+    fingerprint = f"doc_{document_id}"
+    ids = []
+    documents = []
+    embeddings = []
+    metadatas = []
+
+    semaphore = asyncio.Semaphore(RAG_EMBED_MAX_CONCURRENCY)
+
+    async def _embed_chunk(idx: int, chunk: str):
+        async with semaphore:
+            emb = await _get_ollama_embedding(chunk)
+            return idx, chunk, emb
+
+    embed_tasks = [_embed_chunk(idx, chunk) for idx, chunk in enumerate(chunks)]
+    embed_results = await asyncio.gather(*embed_tasks)
+
+    for idx, chunk, emb in sorted(embed_results, key=lambda item: item[0]):
+        if emb is None:
+            continue
+        ids.append(f"{fingerprint}-{idx}")
+        documents.append(chunk)
+        embeddings.append(emb)
+        metadatas.append(
+            {
+                "scope": scope,
+                "chunk_index": idx,
+                "owner_id": owner_id or "global",
+                "visibility": visibility,
+                "doc_fingerprint": fingerprint,
+                "document_id": str(document_id),
+                "filename": filename,
+            }
+        )
+
+    if not ids:
+        print(f"⚠️ 문서 {document_id} 임베딩 실패 (청크 임베딩이 모두 실패)")
+        return False
+
+    try:
+        # 이미 저장된 문서인지 확인 (fingerprint 기반)
+        existing = collection.get(ids=[f"{fingerprint}-0"])
+        if not existing.get("ids"):
+            collection.upsert(
+                ids=ids,
+                documents=documents,
+                embeddings=embeddings,
+                metadatas=metadatas
+            )
+            print(f"✅ 문서 {document_id} ({filename}) ChromaDB 저장 완료: {len(ids)}개 청크")
+            return True
+        else:
+            print(f"ℹ️ 문서 {document_id} 이미 ChromaDB에 저장됨")
+            return True
+    except Exception as exc:
+        print(f"⚠️ 문서 {document_id} ChromaDB 저장 실패: {str(exc)}")
+        return False
+
+
 async def build_rag_context(document_text: str, query: str, user_scope: str, top_k: int = RAG_TOP_K) -> Tuple[str, int]:
     if not RAG_ENABLED:
         return "", 0

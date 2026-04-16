@@ -5,6 +5,7 @@ from typing import AsyncIterator, Optional, List, Dict
 from services.ai_service import (
     summarize_with_instruction as _summarize_with_instruction,
     summarize_with_instruction_stream as _summarize_with_instruction_stream,
+    upsert_document_to_chroma,
 )
 
 

@@ -26,6 +26,7 @@ from services.ai_service_extract import (
 from services.ai_service_chat import (
     summarize_with_instruction,
     summarize_with_instruction_stream,
+    upsert_document_to_chroma,
 )
 # [방법3 수정] SessionLocal을 직접 import하여 generate() 안에서 독립 세션 생성에 사용
 from database import get_db, SessionLocal, PdfDocument, can_user_access_document, log_admin_activity
@@ -353,6 +354,21 @@ async def _build_extraction_document(
         doc.category = "기타"
         db.commit()
 
+    # ChromaDB에 문서 벡터화 저장
+    try:
+        success = await upsert_document_to_chroma(
+            document_id=doc.id,
+            document_text=extracted_text,
+            filename=filename,
+            user_id=user_id,
+        )
+        if success:
+            print(f"✅ 문서 {doc.id} RAG 저장 완료")
+        else:
+            print(f"⚠️ 문서 {doc.id} RAG 저장 실패 (비활성화 또는 오류)")
+    except Exception as exc:
+        print(f"⚠️ 문서 {doc.id} RAG 저장 중 예외: {str(exc)}")
+
     log_admin_activity(
         db=db,
         admin_user_id=user_id,
@@ -576,6 +592,21 @@ async def extract_pdf(
                 doc.category = "기타"
             db.commit()
 
+            # ChromaDB에 문서 벡터화 저장 (비동기 작업이지만 완료 대기)
+            try:
+                success = await upsert_document_to_chroma(
+                    document_id=doc.id,
+                    document_text=extraction_result["text"],
+                    filename=filename,
+                    user_id=user_id,
+                )
+                if success:
+                    print(f"✅ 문서 {doc.id} RAG 저장 완료")
+                else:
+                    print(f"⚠️ 문서 {doc.id} RAG 저장 실패 (비활성화 또는 오류)")
+            except Exception as exc:
+                print(f"⚠️ 문서 {doc.id} RAG 저장 중 예외: {str(exc)}")
+
             try:
                 log_admin_activity(
                     db=db,
@@ -652,7 +683,7 @@ async def extract_pdf_for_chat(
     ocr_model: str = Form(default="pypdf2"),
     current_doc_count: int = Form(default=0),
 ):
-    """(Chat only) Extracts text without saving any document to DB."""
+    """(Chat only) Extracts text and saves to ChromaDB for RAG (but not to DB)."""
     if current_doc_count >= MAX_CHAT_DOCUMENTS:
         raise HTTPException(
             status_code=400,
@@ -670,6 +701,27 @@ async def extract_pdf_for_chat(
     )
     extracted_text = extraction_result["text"]
     extraction_time = extraction_result["processing_time"]
+
+    # 🆕 ChromaDB에만 저장 (임시 document_id 사용, DB에는 저장 안 함)
+    try:
+        # 임시 ID: 파일명 + 타임스탬프 해시 (각 세션마다 고유)
+        import hashlib
+        temp_doc_id = hashlib.sha1(
+            f"{filename}_{time.time()}".encode()
+        ).hexdigest()[:12]
+        
+        success = await upsert_document_to_chroma(
+            document_id=temp_doc_id,
+            document_text=extracted_text,
+            filename=filename,
+            user_id=None,  # 대화형이므로 user_id 없음
+        )
+        if success:
+            print(f"✅ 대화용 문서 ChromaDB 저장 완료: {filename} (temp_id: {temp_doc_id})")
+        else:
+            print(f"⚠️ 대화용 문서 ChromaDB 저장 실패: {filename}")
+    except Exception as exc:
+        print(f"⚠️ 대화용 문서 ChromaDB 저장 중 예외: {str(exc)}")
 
     return {
         "filename": filename,
